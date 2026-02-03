@@ -464,6 +464,7 @@ class Dataset:
             self.sp_matrix_graph_test_list, _ = load_graphs(self.sp_matrix_graphs_test_filename)
         else:
             print("### util: graph list len: ", len(self.training_graph_sampled))
+            j=1
             for idx,graph in enumerate(tqdm(self.training_graph_sampled)):
                 with graph.local_scope():
                     if self.agg_ft == 'norm':
@@ -481,11 +482,14 @@ class Dataset:
                         if self.sp_method == 'star':
                             assert khop == 1
                             transform = KHopGraph(khop)
-                            print("### sp func: what is transform: ",transform)
+                            if j <= 2:
+                                print("### sp func: what is transform: ",transform)
                             tmp_graph = transform(graph)
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
-                            print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
+                            if j <= 2:
+                                print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
+                            j+=1
                         elif self.sp_method == 'convtree':
                             assert khop == 2
                             # we directly use the big graph
@@ -495,10 +499,14 @@ class Dataset:
                             tmp_graph = transform(graph)
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
+                        i=0
                         for central_node_id in graph.nodes():
-                            print("### sp func: central_node_id ", central_node_id, central_node_id.item())
+                            if i <= 2:
+                                print("### sp func: central_node_id ", central_node_id, central_node_id.item())
                             adj_list, weight_list = self.get_sp_adj_list(tmp_graph, central_node_id.item(), khop, self.select_topk_fn)
-                            print("### sp func: adj_list ", adj_list)
+                            if i <= 2:
+                                print("### sp func: adj_list ", adj_list)
+                            i+=1
                             sp_matrix_graph.add_edges(adj_list, central_node_id.long(), {'pw': torch.tensor(weight_list) }) # adj_list->node_id, edata['pw'] = weights
                         
                         self.sp_matrix_graph_train_list.append(sp_matrix_graph)
@@ -512,7 +520,7 @@ class Dataset:
         if load_kg and os.path.exists(self.sp_matrix_graphs_val_filename):
             self.sp_matrix_graph_list, _ = load_graphs(self.sp_matrix_graphs_val_filename)
         else:
-            print("### util: graph list len: ", len(self.validation_graph_sampled))
+            # print("### util: graph list len: ", len(self.validation_graph_sampled))
             for idx,graph in enumerate(tqdm(self.validation_graph_sampled)):
                 with graph.local_scope():
                     if self.agg_ft == 'norm':
@@ -530,11 +538,11 @@ class Dataset:
                         if self.sp_method == 'star':
                             assert khop == 1
                             transform = KHopGraph(khop)
-                            print("### sp func: what is transform: ",transform)
+                            # print("### sp func: what is transform: ",transform)
                             tmp_graph = transform(graph)
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
-                            print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
+                            # print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
                         elif self.sp_method == 'convtree':
                             assert khop == 2
                             # we directly use the big graph
@@ -545,9 +553,9 @@ class Dataset:
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
                         for central_node_id in graph.nodes():
-                            print("### sp func: central_node_id ", central_node_id, central_node_id.item())
+                            # print("### sp func: central_node_id ", central_node_id, central_node_id.item())
                             adj_list, weight_list = self.get_sp_adj_list(tmp_graph, central_node_id.item(), khop, self.select_topk_fn)
-                            print("### sp func: adj_list ", adj_list)
+                            # print("### sp func: adj_list ", adj_list)
                             sp_matrix_graph.add_edges(adj_list, central_node_id.long(), {'pw': torch.tensor(weight_list) }) # adj_list->node_id, edata['pw'] = weights
                         
                         self.sp_matrix_graph_val_list.append(sp_matrix_graph)
