@@ -481,7 +481,7 @@ class Dataset:
                         if self.sp_method == 'star':
                             assert khop == 1
                             transform = KHopGraph(khop)
-                            print("### sp func: what is transform: ",transform.type)
+                            print("### sp func: what is transform: ",transform)
                             tmp_graph = transform(graph)
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
@@ -530,7 +530,7 @@ class Dataset:
                         if self.sp_method == 'star':
                             assert khop == 1
                             transform = KHopGraph(khop)
-                            print("### sp func: what is transform: ",transform.type)
+                            print("### sp func: what is transform: ",transform)
                             tmp_graph = transform(graph)
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
@@ -579,7 +579,7 @@ class Dataset:
                         if self.sp_method == 'star':
                             assert khop == 1
                             transform = KHopGraph(khop)
-                            print("### sp func: what is transform: ",transform.type)
+                            print("### sp func: what is transform: ",transform)
                             tmp_graph = transform(graph)
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
