@@ -677,7 +677,7 @@ class Dataset:
                         for nb in neighbors:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
                                 sample_zeros.append(nb.item())
-                            if nn.item() in one_labeled and nb.item() not in sample_ones:
+                            if nb.item() in one_labeled and nb.item() not in sample_ones:
                                 sample_ones.append(nb.item())  
 
                 if i <= 2:
