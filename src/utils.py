@@ -660,6 +660,7 @@ class Dataset:
             print("zero labeled ", zero_labeled[:50])
             print("one labeled ", one_labeled[:50])
             for i in range(1500):
+                print("sampling training graph ", i)
                 seed = ROOT_SEED+1500*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
@@ -692,6 +693,8 @@ class Dataset:
                 self.training_graph_sampled.append(sampled_graph)
                 self.training_graph_edges.append(sampled_graph.edata[dgl.EID])
 
+            print("traing graph sampled num: ", len(self.training_graph_sampled))
+
             for i in range(500):
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
@@ -716,6 +719,8 @@ class Dataset:
                 self.validation_graph_sampled.append(sampled_graph)
                 self.validation_graph_edges.append(sampled_graph.edata[dgl.EID])
 
+            print("validation graph sampled num: ", len(self.validation_graph_sampled))
+
             for i in range(500):
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
@@ -739,6 +744,9 @@ class Dataset:
                 sampled_graph = dgl.node_subgraph(original_graph, selected_node_ids, store_ids=True)
                 self.testing_graph_sampled.append(sampled_graph)
                 self.testing_graph_edges.append(sampled_graph.edata[dgl.EID])
+
+            print("testing graph sampled num: ", len(self.testing_graph_sampled))
+       
         self.prepare_dataset_done = True
         print("### util: dataset prepared.")
 
