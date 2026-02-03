@@ -186,13 +186,13 @@ def select_topk_star_unionft(star_khop_graph_big, node_ids, central_node_id):
 def get_star_topk_nbs(star_khop_graph_big, central_node_id, khop, select_topk):
     star_khop_graph_in = star_khop_graph_big.sample_neighbors([central_node_id],fanout=-1, edge_dir='in')
     star_khop_graph_out = star_khop_graph_big.sample_neighbors([central_node_id],fanout=-1, edge_dir='out')
-    print("### util topknbs: star_khop_graph_in", star_khop_graph_in.edges())
-    print("### util topknbs: star_khop_graph_out", star_khop_graph_out.edges())
+    # print("### util topknbs: star_khop_graph_in", star_khop_graph_in.edges())
+    # print("### util topknbs: star_khop_graph_out", star_khop_graph_out.edges())
     node_ids_in = star_khop_graph_in.edges()[0]
     node_ids_out = star_khop_graph_out.edges()[1]
     node_ids = torch.cat([node_ids_in, node_ids_out], dim=0)
-    print("### util topknbs: node_ids_in", node_ids_in, "out", node_ids_out)
-    print("### util topknbs: node_ids", node_ids)
+    # print("### util topknbs: node_ids_in", node_ids_in, "out", node_ids_out)
+    # print("### util topknbs: node_ids", node_ids)
     node_ids = torch.unique(node_ids)
 
 
