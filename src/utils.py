@@ -19,6 +19,9 @@ import numpy as np
 import torch.nn.functional as F
 from functools import partial
 
+from line_profiler import profile
+
+
 NAME_MAP = {
     'n': "Node",
     'e': "Edge",
