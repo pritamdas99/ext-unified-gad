@@ -18,7 +18,10 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     train_dataloader, val_dataloader, test_dataloader =  dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True)
     return
 
+print('=================> what the hell)')
+      
 def main():
+    print('=================> Starting experiments ...')
     args = get_args()
     # parse data
     if args.kernels is not None:
