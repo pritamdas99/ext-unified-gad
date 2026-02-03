@@ -380,9 +380,9 @@ class Dataset:
             for x, n, e in zip(self.training_graph_sampled, train_nodes, train_edges):
                 labels_dict = {}
                 if 'n' in self.labels_have:
-                    labels_dict['node_label'] = x.ndata['node_label'][n]
+                    labels_dict['node_label'] = x.ndata['node_label']
                 if 'e' in self.labels_have:
-                    labels_dict['edge_label'] = x.edata['edge_label'][e]
+                    labels_dict['edge_label'] = x.edata['edge_label']
                 if i <= 2:
                     print(labels_dict['node_label'][:10], labels_dict['edge_label'][:10])
                 self.training_graph_labels_dict.append(labels_dict)
@@ -392,9 +392,9 @@ class Dataset:
             for x, n, e in zip(self.validation_graph_sampled, val_nodes, val_edges):
                 labels_dict = {}
                 if 'n' in self.labels_have:
-                    labels_dict['node_label'] = x.ndata['node_label'][n]
+                    labels_dict['node_label'] = x.ndata['node_label']
                 if 'e' in self.labels_have:
-                    labels_dict['edge_label'] = x.edata['edge_label'][e]
+                    labels_dict['edge_label'] = x.edata['edge_label']
                 self.validation_graph_labels_dict.append(labels_dict)
 
             test_nodes = self.testing_graph_nodes
@@ -402,9 +402,9 @@ class Dataset:
             for x, n, e in zip(self.testing_graph_sampled, test_nodes, test_edges):
                 labels_dict = {}
                 if 'n' in self.labels_have:
-                    labels_dict['node_label'] = x.ndata['node_label'][n]
+                    labels_dict['node_label'] = x.ndata['node_label']
                 if 'e' in self.labels_have:
-                    labels_dict['edge_label'] = x.edata['edge_label'][e]
+                    labels_dict['edge_label'] = x.edata['edge_label']
                 self.testing_graph_labels_dict.append(labels_dict)
 
     def get_graph_and_sp_dataloaders(self, batch_size=32, shuffle=True, num_workers=0):
@@ -516,6 +516,7 @@ class Dataset:
                         graph.ndata.pop('feature_normed') # remove normed feature
     
             save_graphs(self.sp_matrix_graphs_train_filename, self.sp_matrix_graph_train_list)
+            print("### util: finished training sp graphs generation ")
 
         if load_kg and os.path.exists(self.sp_matrix_graphs_val_filename):
             self.sp_matrix_graph_list, _ = load_graphs(self.sp_matrix_graphs_val_filename)
@@ -565,6 +566,7 @@ class Dataset:
                         graph.ndata.pop('feature_normed') # remove normed feature
     
             save_graphs(self.sp_matrix_graphs_val_filename, self.sp_matrix_graph_val_list)
+            print("### util: finished validation sp graphs generation ")
 
         if load_kg and os.path.exists(self.sp_matrix_graphs_test_filename):
             self.sp_matrix_graph_list, _ = load_graphs(self.sp_matrix_graphs_test_filename)
@@ -602,7 +604,7 @@ class Dataset:
                             tmp_graph = tmp_graph.to_simple()
                             tmp_graph = tmp_graph.remove_self_loop()
                         for central_node_id in graph.nodes():
-                            print("### sp func: central_node_id ", central_node_id, central_node_id.item())
+                            print("### sp func: central_node_id ", central_node_id, central_node_id.item(), len(graph.nodes()))
                             adj_list, weight_list = self.get_sp_adj_list(tmp_graph, central_node_id.item(), khop, self.select_topk_fn)
                             print("### sp func: adj_list ", adj_list)
                             sp_matrix_graph.add_edges(adj_list, central_node_id.long(), {'pw': torch.tensor(weight_list) }) # adj_list->node_id, edata['pw'] = weights
@@ -614,6 +616,7 @@ class Dataset:
                         graph.ndata.pop('feature_normed') # remove normed feature
     
             save_graphs(self.sp_matrix_graphs_test_filename, self.sp_matrix_graph_test_list)
+            print("### util: finished testing sp graphs generation ")
 
         if khop != 0:
             # fix nan
@@ -658,7 +661,7 @@ class Dataset:
                 self.edge_label.append(graph.edata['edge_label'])
 
         if len(self.graph_list) == 1:
-            original_graph = self.graph_list[0]
+            self.original_graph = self.graph_list[0]
             self.is_single_graph = True
             node_labels = self.node_label[0]
             num_nodes = self.graph_list[0].num_nodes()
@@ -680,8 +683,8 @@ class Dataset:
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
-                        pres = original_graph.predecessors(n)
-                        sucs = original_graph.successors(n)
+                        pres = self.original_graph.predecessors(n)
+                        sucs = self.original_graph.successors(n)
                         neighbors = torch.unique(torch.cat([pres, sucs], dim=0))
                         for nb in neighbors:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
@@ -695,7 +698,7 @@ class Dataset:
                 selected_node_ids = sample_zeros + sample_ones
                 selected_node_ids = torch.tensor(selected_node_ids).long()
                 self.training_graph_nodes.append(selected_node_ids)
-                sampled_graph = dgl.node_subgraph(original_graph, selected_node_ids, store_ids=True)
+                sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
                 if i <=2 :
                     print("few nodes from sampled graph: ", sampled_graph.ndata[dgl.NID][:10])
                 self.training_graph_sampled.append(sampled_graph)
@@ -712,8 +715,8 @@ class Dataset:
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
-                        pres = original_graph.predecessors(n)
-                        sucs = original_graph.successors(n)
+                        pres = self.original_graph.predecessors(n)
+                        sucs = self.original_graph.successors(n)
                         neighbors = torch.unique(torch.cat([pres, sucs], dim=0))
                         for nb in neighbors:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
@@ -723,7 +726,7 @@ class Dataset:
                 selected_node_ids = sample_zeros + sample_ones
                 selected_node_ids = torch.tensor(selected_node_ids).long()
                 self.validation_graph_nodes.append(selected_node_ids)
-                sampled_graph = dgl.node_subgraph(original_graph, selected_node_ids, store_ids=True)
+                sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
                 self.validation_graph_sampled.append(sampled_graph)
                 self.validation_graph_edges.append(sampled_graph.edata[dgl.EID])
 
@@ -738,8 +741,8 @@ class Dataset:
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
-                        pres = original_graph.predecessors(n)
-                        sucs = original_graph.successors(n)
+                        pres = self.original_graph.predecessors(n)
+                        sucs = self.original_graph.successors(n)
                         neighbors = torch.unique(torch.cat([pres, sucs], dim=0))
                         for nb in neighbors:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
@@ -749,7 +752,7 @@ class Dataset:
                 selected_node_ids = sample_zeros + sample_ones
                 selected_node_ids = torch.tensor(selected_node_ids).long()
                 self.testing_graph_nodes.append(selected_node_ids)
-                sampled_graph = dgl.node_subgraph(original_graph, selected_node_ids, store_ids=True)
+                sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
                 self.testing_graph_sampled.append(sampled_graph)
                 self.testing_graph_edges.append(sampled_graph.edata[dgl.EID])
 
