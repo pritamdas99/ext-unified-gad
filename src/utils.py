@@ -688,7 +688,7 @@ class Dataset:
                 self.training_graph_nodes.append(selected_node_ids)
                 sampled_graph = dgl.node_subgraph(original_graph, selected_node_ids, store_ids=True)
                 if i <=2 :
-                    print("few nodes from sampled graph: ", sampled_graph.nodes())
+                    print("few nodes from sampled graph: ", sampled_graph.ndata[dgl.NID][:10])
                 self.training_graph_sampled.append(sampled_graph)
                 self.training_graph_edges.append(sampled_graph.edata[dgl.EID])
 
@@ -740,6 +740,7 @@ class Dataset:
                 self.testing_graph_sampled.append(sampled_graph)
                 self.testing_graph_edges.append(sampled_graph.edata[dgl.EID])
         self.prepare_dataset_done = True
+        print("### util: dataset prepared.")
 
         return
 
