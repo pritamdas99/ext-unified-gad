@@ -9,13 +9,21 @@ warnings.filterwarnings("ignore")
 
 seed_list = list(range(3407, 10000, 10))
 
+def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
+    full_model_name = 'gcn-transformer'
+    hop = args.khop
+    dataset_name = dataset.name.replace('/', '.')
+    print('Dataset: {}, Cross_mode: {}, Hop: {}, Kernels: {}, Model: {}'.format(dataset_name, cross_mode, hop, kernels, full_model_name))
+    dataset.prepare_dataset()
+    train_dataloader, val_dataloader, test_dataloader =  dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True)
+    return
 
 def main():
     args = get_args()
     # parse data
     if args.kernels is not None:
-        kernels = args.kernels.split(',')
-        print('All kernels: ', kernels)
+        # kernels = args.kernels.split(',')
+        print('All kernels: ', args.kernels)
 
     if args.datasets is not None:
         if '-' in args.datasets:
@@ -65,3 +73,6 @@ def main():
             dataset = Dataset(dataset_name+'-els', prefix='../datasets/edge_labels/', sp_type=sp_type, labels_have='ne')
         else:
             dataset = Dataset(dataset_name)
+
+        for cross_mode in cross_modes:
+            work(dataset, dataset_name, cross_mode, args.kernels, args)
