@@ -659,9 +659,9 @@ class Dataset:
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
             print("zero labeled ", zero_labeled[:50])
             print("one labeled ", one_labeled[:50])
-            for i in range(1500):
+            for i in range(100):
                 print("sampling training graph ", i)
-                seed = ROOT_SEED+1500*i
+                seed = ROOT_SEED+100*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
                 sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
@@ -695,8 +695,8 @@ class Dataset:
 
             print("traing graph sampled num: ", len(self.training_graph_sampled))
 
-            for i in range(500):
-                seed = ROOT_SEED+500*i
+            for i in range(50):
+                seed = ROOT_SEED+50*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
                 sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
@@ -721,8 +721,8 @@ class Dataset:
 
             print("validation graph sampled num: ", len(self.validation_graph_sampled))
 
-            for i in range(500):
-                seed = ROOT_SEED+500*i
+            for i in range(50):
+                seed = ROOT_SEED+50*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
                 sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
