@@ -14,7 +14,6 @@ import scipy
 
 from utils import obtain_act, obtain_norm, obtain_pooler, sce_loss
 
-
 class GCN(nn.Module):
     def __init__(self,
                  in_dim,
@@ -35,7 +34,7 @@ class GCN(nn.Module):
 
         last_activation = obtain_act(activation)
         last_residual = residual
-        last_norm = norm 
+        last_norm = obtain_norm(norm)
         
         if num_layers == 1:
             self.gcn_layers.append(GraphConv(

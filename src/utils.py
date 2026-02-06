@@ -39,6 +39,17 @@ DATASETS = ['reddit', 'weibo', 'amazon', 'yelp', 'tfinance', 'elliptic', 'toloke
 EPS = 1e-12 # for nan
 ROOT_SEED = 3407
 
+# to be A
+def log_loss(tags:str, loss_item_dicts):
+    for tag, loss_item_dict in zip(tags,loss_item_dicts):
+        print(f"{tag} loss  ", end='')
+        for k,v in loss_item_dict.items():
+            print("  {}: {:.4f}".format(
+                NAME_MAP[k],
+                v
+            ), end='')
+        print("")
+
 # ======================================================================
 #   Model activation/normalization creation function
 # ======================================================================
@@ -659,7 +670,6 @@ class Dataset:
                 self.node_label.append(graph.ndata['node_label'])
             if 'e' in self.labels_have:
                 self.edge_label.append(graph.edata['edge_label'])
-
         if len(self.graph_list) == 1:
             self.original_graph = self.graph_list[0]
             self.is_single_graph = True

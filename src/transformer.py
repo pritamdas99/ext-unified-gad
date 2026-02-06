@@ -15,7 +15,7 @@ class CustomTransformerEncoder(nn.Module):
         return output
 
 class CustomTransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1):
+    def __init__(self, d_model, nhead=3, dim_feedforward=2048, dropout=0.1):
         super(CustomTransformerEncoderLayer, self).__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.linear1 = nn.Linear(d_model, dim_feedforward)
@@ -27,10 +27,8 @@ class CustomTransformerEncoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, src, raw_src, src_mask=None, src_key_padding_mask=None):
-        # Q, K from src, V from raw_src
-        q = k = src
-        v = raw_src
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
+        q = k = v = src
 
         src2 = self.self_attn(q, k, v, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
@@ -40,31 +38,34 @@ class CustomTransformerEncoderLayer(nn.Module):
         src = self.norm2(src)
         return src
 
-class TransformerBinaryClassifier(nn.Module):
-    def __init__(self, config, device, hidden_size=128):
-        super(TransformerBinaryClassifier, self).__init__()
-        self.device = device
-        self.input_size = config.input_dim
+class Transformer(nn.Module):
+    def __init__(self, d_model, n_heads, n_layers, dim_feedforward, dropout):
+        super(Transformer, self).__init__()
+        # self.device = device
+        self.input_size = d_model
+        self.n_heads = n_heads
+        self.dropout = dropout
+        self.hidden_size = dim_feedforward
+        self.n_layers = n_layers
 
-        self.encoder_layer = CustomTransformerEncoderLayer(d_model=self.input_size, nhead=config.n_heads,
-                                                           dropout=config.drop_out, dim_feedforward=hidden_size)
-        self.transformer_encoder = CustomTransformerEncoder(self.encoder_layer, num_layers=config.n_layer)
+        self.encoder_layer = CustomTransformerEncoderLayer(d_model=self.input_size, nhead=self.n_heads,
+                                                           dropout=self.dropout, dim_feedforward=self.hidden_size)
+        self.transformer_encoder = CustomTransformerEncoder(self.encoder_layer, num_layers=self.n_layers)
 
         self.bn = nn.BatchNorm1d(self.input_size)
-        self.dropout = nn.Dropout(config.drop_out)
+        self.dropout = nn.Dropout(self.dropout)
         self.classifier = nn.Linear(self.input_size, 1)
         self.sigmoid = nn.Sigmoid()
-        self.to(device)
-        self.config = config
+        # self.to(device)
 
-    def forward(self, raw_input, GNN_output, mask):
+    def forward(self, GNN_output, mask):
         GNN_output = GNN_output.transpose(0, 1)
         raw_input = raw_input.transpose(0, 1)
         GNN_output = GNN_output.float()
         raw_input = raw_input.float()
         mask = mask.bool()
 
-        transformer_output = self.transformer_encoder(GNN_output, raw_input, src_key_padding_mask=mask)
+        transformer_output = self.transformer_encoder(GNN_output, src_key_padding_mask=mask)
         transformer_output = transformer_output.transpose(0, 1)
         transformer_output[mask] = 0
 
