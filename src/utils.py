@@ -642,10 +642,74 @@ class Dataset:
         return
         
 
+    def _build_adj_dict(self, graph):
+        """Pre-compute adjacency as dict of sets. O(E) one-time cost, then O(1) neighbor lookup."""
+        adj = {}
+        src, dst = graph.edges()
+        src_list = src.tolist()
+        dst_list = dst.tolist()
+        for s, d in zip(src_list, dst_list):
+            if s not in adj:
+                adj[s] = set()
+            adj[s].add(d)
+            if d not in adj:
+                adj[d] = set()
+            adj[d].add(s)
+        return adj
+
+    def _sample_subgraphs(self, num_samples, seed_base, seed_step, zero_list, one_list,
+                          zero_set, one_set, adj, k=2, verbose=False):
+        """
+        Sample subgraphs with k-hop expansion from anomaly seeds.
+        Uses sets for O(1) membership checks instead of O(n) list scans.
+        """
+        graph_sampled = []
+        graph_nodes = []
+        graph_edges = []
+
+        for i in range(num_samples):
+            seed = ROOT_SEED + seed_base + seed_step * i
+            set_seed(seed)
+            sample_zeros = set(random.sample(zero_list, min(10, len(zero_list))))
+            sample_ones  = set(random.sample(one_list, min(10, len(one_list))))
+
+            if verbose and i <= 2:
+                print("sampled zeros ", list(sample_zeros)[:10])
+                print("sampled ones ", list(sample_ones)[:10])
+
+            # k-hop expansion using pre-computed adjacency and sets
+            for _ in range(k):
+                new_zeros = set()
+                new_ones = set()
+                for n in list(sample_ones):
+                    for nb in adj.get(n, set()):
+                        if nb in zero_set and nb not in sample_zeros:
+                            new_zeros.add(nb)
+                        if nb in one_set and nb not in sample_ones:
+                            new_ones.add(nb)
+                sample_zeros.update(new_zeros)
+                sample_ones.update(new_ones)
+
+            if verbose and i <= 2:
+                print("after expand sampled zeros ", list(sample_zeros)[:10], len(sample_zeros))
+                print("after expand sampled ones ", list(sample_ones)[:10], len(sample_ones))
+
+            selected_node_ids = torch.tensor(list(sample_zeros | sample_ones), dtype=torch.long)
+            graph_nodes.append(selected_node_ids)
+            sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
+
+            if verbose and i <= 2:
+                print("few nodes from sampled graph: ", sampled_graph.ndata[dgl.NID][:10])
+
+            graph_sampled.append(sampled_graph)
+            graph_edges.append(sampled_graph.edata[dgl.EID])
+
+        return graph_sampled, graph_nodes, graph_edges
+
     def prepare_dataset(self):
         if self.prepare_dataset_done:
             return
-        
+
         self.node_label = []
         self.edge_label = []
 
@@ -662,7 +726,7 @@ class Dataset:
         self.testing_graph_edges = []
 
         self.node_test_masks = []
-        
+
         # some preprocess
         for idx,graph in enumerate(tqdm(self.graph_list)):
             graph.ndata['feature'] = graph.ndata['feature'].float()
@@ -674,101 +738,41 @@ class Dataset:
             self.original_graph = self.graph_list[0]
             self.is_single_graph = True
             node_labels = self.node_label[0]
-            num_nodes = self.graph_list[0].num_nodes()
-            self.total_nodes = num_nodes
-            all_node_ids = list(range(num_nodes))
-            zero_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 0]
-            one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
-            print("zero labeled ", zero_labeled[:50])
-            print("one labeled ", one_labeled[:50])
-            for i in range(100):
-                print("sampling training graph ", i)
-                seed = ROOT_SEED+100*i
-                set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                if i <=2:
-                    print("sampled zeros ", sample_zeros[:10])
-                    print("sampled ones ", sample_ones[:10])
-                k=2
-                for _ in range(k):
-                    one_labeled_nodes = torch.tensor(sample_ones).long()
-                    for n in one_labeled_nodes:
-                        pres = self.original_graph.predecessors(n)
-                        sucs = self.original_graph.successors(n)
-                        neighbors = torch.unique(torch.cat([pres, sucs], dim=0))
-                        for nb in neighbors:
-                            if nb.item() in zero_labeled and nb.item() not in sample_zeros:
-                                sample_zeros.append(nb.item())
-                            if nb.item() in one_labeled and nb.item() not in sample_ones:
-                                sample_ones.append(nb.item())  
 
-                if i <= 2:
-                    print("after expand sampled zeros ", sample_zeros[:10], len(sample_zeros))
-                    print("after expand sampled ones ", sample_ones[:10], len(sample_ones))
-                selected_node_ids = sample_zeros + sample_ones
-                selected_node_ids = torch.tensor(selected_node_ids).long()
-                self.training_graph_nodes.append(selected_node_ids)
-                sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
-                if i <=2 :
-                    print("few nodes from sampled graph: ", sampled_graph.ndata[dgl.NID][:10])
-                self.training_graph_sampled.append(sampled_graph)
-                self.training_graph_edges.append(sampled_graph.edata[dgl.EID])
+            # O(1) lookup sets instead of O(n) list scans
+            zero_set = set()
+            one_set = set()
+            for n in range(self.graph_list[0].num_nodes()):
+                if node_labels[n] == 0:
+                    zero_set.add(n)
+                else:
+                    one_set.add(n)
+            zero_list = list(zero_set)
+            one_list = list(one_set)
 
-            print("traing graph sampled num: ", len(self.training_graph_sampled))
+            print("zero labeled ", zero_list[:50])
+            print("one labeled ", one_list[:50])
 
-            for i in range(50):
-                seed = ROOT_SEED+50*i
-                set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                k=2
-                for _ in range(k):
-                    one_labeled_nodes = torch.tensor(sample_ones).long()
-                    for n in one_labeled_nodes:
-                        pres = self.original_graph.predecessors(n)
-                        sucs = self.original_graph.successors(n)
-                        neighbors = torch.unique(torch.cat([pres, sucs], dim=0))
-                        for nb in neighbors:
-                            if nb.item() in zero_labeled and nb.item() not in sample_zeros:
-                                sample_zeros.append(nb.item())
-                            if nb.item() in one_labeled and nb.item() not in sample_ones:
-                                sample_ones.append(nb.item())  
-                selected_node_ids = sample_zeros + sample_ones
-                selected_node_ids = torch.tensor(selected_node_ids).long()
-                self.validation_graph_nodes.append(selected_node_ids)
-                sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
-                self.validation_graph_sampled.append(sampled_graph)
-                self.validation_graph_edges.append(sampled_graph.edata[dgl.EID])
+            # Pre-compute adjacency dict once — O(E), avoids repeated predecessors/successors calls
+            print("pre-computing adjacency dict...")
+            adj = self._build_adj_dict(self.original_graph)
+            print(f"adjacency dict built: {len(adj)} nodes")
 
+            # Training: 100 samples
+            self.training_graph_sampled, self.training_graph_nodes, self.training_graph_edges = \
+                self._sample_subgraphs(100, 0, 100, zero_list, one_list, zero_set, one_set, adj, k=2, verbose=True)
+            print("training graph sampled num: ", len(self.training_graph_sampled))
+
+            # Validation: 50 samples
+            self.validation_graph_sampled, self.validation_graph_nodes, self.validation_graph_edges = \
+                self._sample_subgraphs(50, 0, 50, zero_list, one_list, zero_set, one_set, adj, k=2)
             print("validation graph sampled num: ", len(self.validation_graph_sampled))
 
-            for i in range(50):
-                seed = ROOT_SEED+50*i
-                set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                k=2
-                for _ in range(k):
-                    one_labeled_nodes = torch.tensor(sample_ones).long()
-                    for n in one_labeled_nodes:
-                        pres = self.original_graph.predecessors(n)
-                        sucs = self.original_graph.successors(n)
-                        neighbors = torch.unique(torch.cat([pres, sucs], dim=0))
-                        for nb in neighbors:
-                            if nb.item() in zero_labeled and nb.item() not in sample_zeros:
-                                sample_zeros.append(nb.item())
-                            if nb.item() in one_labeled and nb.item() not in sample_ones:
-                                sample_ones.append(nb.item())  
-                selected_node_ids = sample_zeros + sample_ones
-                selected_node_ids = torch.tensor(selected_node_ids).long()
-                self.testing_graph_nodes.append(selected_node_ids)
-                sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
-                self.testing_graph_sampled.append(sampled_graph)
-                self.testing_graph_edges.append(sampled_graph.edata[dgl.EID])
-
+            # Testing: 50 samples
+            self.testing_graph_sampled, self.testing_graph_nodes, self.testing_graph_edges = \
+                self._sample_subgraphs(50, 0, 50, zero_list, one_list, zero_set, one_set, adj, k=2)
             print("testing graph sampled num: ", len(self.testing_graph_sampled))
-       
+
         self.prepare_dataset_done = True
         print("### util: dataset prepared.")
 
