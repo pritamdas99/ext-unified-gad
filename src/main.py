@@ -15,7 +15,7 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     dataset_name = dataset.name.replace('/', '.')
     print('Dataset: {}, Cross_mode: {}, Hop: {}, Kernels: {}, Model: {}'.format(dataset_name, cross_mode, hop, kernels, full_model_name))
     dataset.prepare_dataset()
-    dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True)
+    dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True, num_workers=args.num_workers)
     train_dataloader, val_dataloader, test_dataloader =  dataset.get_graph_and_sp_dataloaders()
     
     return
