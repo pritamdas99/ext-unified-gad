@@ -675,6 +675,7 @@ class Dataset:
             self.is_single_graph = True
             node_labels = self.node_label[0]
             num_nodes = self.graph_list[0].num_nodes()
+            self.total_nodes = num_nodes
             all_node_ids = list(range(num_nodes))
             zero_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 0]
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
