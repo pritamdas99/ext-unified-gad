@@ -19,11 +19,10 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True)
     train_dataloader, val_dataloader, test_dataloader =  dataset.get_graph_and_sp_dataloaders()
 
-    e2e_model = UnifyMLPDetector(pretrain_model, dataset, (train_dataloader, val_dataloader, test_dataloader), cross_mode=cross_mode, args=args)
+    e2e_model = UnifyMLPDetector(dataset.total_nodes, dataset, (train_dataloader, val_dataloader, test_dataloader), cross_mode=cross_mode, args=args)
     ST = time.time()
     print(f"training...")
     score_test = e2e_model.train()
-    result_score_dict_list.append(score_test)
 
     ED = time.time()
     time_cost += ED - ST
@@ -32,23 +31,9 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     model_result = {'dataset name': dataset_name,
                     'model_name': full_model_name,
                     'cross mode': cross_mode,
-                    'time cost': time_cost/args.trials}
+                    'time cost': time_cost}
 
-    # calculate the results across trials
-    for k in e2e_model.output_route:
-        for metric in ['MacroF1', 'AUROC', 'AUPRC']:
-            metric_result_list = [d[k][metric] for d in result_score_dict_list]
-            model_result[f'{metric} {NAME_MAP[k]} mean'] = np.mean(metric_result_list)
-            model_result[f'{metric} {NAME_MAP[k]} std'] = np.std(metric_result_list)
-            print(metric)
-            print(metric_result_list)
-            print("avg: ", sum(metric_result_list)/len(metric_result_list))
-
-    # save the result to 
-    model_result = pandas.DataFrame(model_result, index=[0])
-    return model_result
-    
-    return
+    return score_test
 
     
 
