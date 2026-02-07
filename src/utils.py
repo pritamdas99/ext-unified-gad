@@ -824,3 +824,11 @@ def get_args():
     
     args = parser.parse_args()
     return args
+
+
+def save_results(results, save_file_name=None):
+    save_file_name = save_file_name.replace('/', '')
+    if not os.path.exists('../results/'):
+        os.mkdir('../results/')
+    results.transpose().to_excel('../results/{}.xlsx'.format(save_file_name))
+    print('save to file: {}'.format(save_file_name))

@@ -32,9 +32,12 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
                     'model_name': full_model_name,
                     'cross mode': cross_mode,
                     'time cost': time_cost}
+    
+    for k in e2e_model.output_route:
+        for metric in ['MacroF1', 'AUROC', 'AUPRC']:
+            model_result[f'{metric} {NAME_MAP[k]}'] = score_test[k][metric]
 
-    return score_test
-
+    return model_result
     
 
 def main():
@@ -99,8 +102,8 @@ def main():
             results = pandas.concat([results, model_result])
 
             # save result for each dataset-model-pair
-            full_model_name = kernel + '-transformer'
-            save_file_name = f"{args.tag}.{args.act_ft}.dataset_{dataset_name}.premodel_{full_model_name}.preepochs_{args.epoch_pretrain}.hop_{args.khop}.sp_type_{sp_type}.lr_ft_{args.lr_ft}.epochft_{args.epoch_ft}.wd_{args.l2}.crossmode_{cross_mode}.mlplayers_{args.stitch_mlp_layers}_{args.final_mlp_layers}.lossweights_{str(args.node_loss_weight)+'-'+str(args.edge_loss_weight)+'-'+str(args.graph_loss_weight)}"
+            full_model_name = args.kernel + '-transformer'
+            save_file_name = f"{args.tag}.{args.act_ft}.dataset_{dataset_name}.hop_{args.khop}.sp_type_{sp_type}.lr_ft_{args.lr_ft}.epochft_{args.epoch_ft}.wd_{args.l2}.crossmode_{cross_mode}.mlplayers_{args.stitch_mlp_layers}_{args.final_mlp_layers}.lossweights_{str(args.node_loss_weight)+'-'+str(args.edge_loss_weight)+'-'+str(args.graph_loss_weight)}"
             save_results(results, save_file_name)
             print(results)
 
