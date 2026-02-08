@@ -92,7 +92,7 @@ class UNIMLP_E2E(nn.Module):
         self.ff_dim = ff_dim
         self.total_nodes = total_nodes
 
-        self.model = GCNTemporalFusion(in_dim=in_feats, hid_dim=embed_dims, out_dim=embed_dims, n_layers_gcn=2, activation=activation, norm='batch',
+        self.model = GCNTemporalFusion(in_dim=in_feats, hid_dim=embed_dims, out_dim=in_feats, n_layers_gcn=2, activation=activation, norm='batch',
                  n_heads=n_heads, n_layers_attention=n_layers_attention, ff_dim=ff_dim, dropout=dropout_rate)
 
         ######## network structure start
