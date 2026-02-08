@@ -30,7 +30,7 @@ class GCNTemporalFusion(nn.Module):
 
         mask_t = torch.ones(len(graph_seq), total_nodes)
         for t, g in enumerate(graph_seq):
-            h_t = self.gcn(g)  
+            h_t = self.gcn(g, g.ndata['feature'])
             h_t = SubgraphPooling(h_t, mrq_graph[t])          
             padded_ht = torch.zeros(total_nodes, self.in_dim)
             padded_ht[g.ndata[dgl.NID]] = h_t
