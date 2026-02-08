@@ -56,20 +56,29 @@ def apply_gradient(model,loss):
 def pareto_fn(w_list, c_list, model, num_tasks, loss_list):
     grads = [[] for i in range(len(loss_list))]
 
-    for i,loss in enumerate(loss_list):
+    for i, loss in enumerate(loss_list):
+        # compute per-task gradients before collecting them
+        model.zero_grad()
+        loss.backward(retain_graph=True)
         for p in model.parameters():
             if p.grad is not None:
-                grads[i].append(p.grad.view(-1))
+                # clone so next backward() doesn't overwrite this task's grads
+                grads[i].append(p.grad.detach().clone().view(-1))
             else:
-                grads[i].append(torch.zeros_like(p).cuda(non_blocking=True).view(-1))
+                grads[i].append(torch.zeros_like(p).view(-1))
 
-        grads[i] = torch.cat(grads[i],dim=-1).cpu().numpy()
+        grads[i] = torch.cat(grads[i], dim=-1).cpu().numpy()
 
+    # clear grads so caller's backward() starts clean
+    model.zero_grad()
 
-
-    grads = np.concatenate(grads,axis=0).reshape(num_tasks,-1)
+    grads = np.concatenate(grads, axis=0).reshape(num_tasks, -1)
     weights = np.mat([[w] for w in w_list])
     c_mat = np.mat([[c] for c in c_list])
-    new_w_list = pareto_step(weights, c_mat, grads)
+    # fallback to equal weights if SVD fails on degenerate gradient matrix
+    try:
+        new_w_list = pareto_step(weights, c_mat, grads)
+    except np.linalg.LinAlgError:
+        new_w_list = np.array(w_list)
 
     return new_w_list
