@@ -196,7 +196,7 @@ class UnifyMLPDetector(object):
 
                 self.model.train()
                 logits_dict= self.model(batched_graph, batched_khop_graph)
-                loss, loss_items = self.get_loss(logits_dict, labels_dict=batched_labels_dict)
+                loss, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
 
                 loss = torch.stack(loss).mean() # average the loss of different tasks
                 result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
@@ -248,7 +248,7 @@ class UnifyMLPDetector(object):
                     self.model.eval()
                     with torch.no_grad():
                         logits_dict = self.model(batched_graph, batched_khop_graph)
-                        _, loss_items = self.get_loss(logits_dict, labels_dict=batched_labels_dict)
+                        _, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
                         result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
                         for k in loss_items_total_val:
                             loss_items_total_val[k] += result[k] # notice next block
@@ -313,7 +313,7 @@ class UnifyMLPDetector(object):
                         # get test result
                         with torch.no_grad():
                             logits_dict = self.model(batched_graph, batched_khop_graph)
-                            _, loss_items = self.get_loss(logits_dict, labels_dict=batched_labels_dict)
+                            _, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
                             result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
                             for k in loss_items_total_test:
                                 loss_items_total_test[k] += result[k]
