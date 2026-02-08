@@ -13,6 +13,7 @@ class GCNTemporalFusion(nn.Module):
                  n_heads=4, n_layers_attention=2, ff_dim=256, dropout=0.1):
         super().__init__()
         self.in_dim = in_dim
+        self.out_dim = out_dim
         self.gcn = GCN(in_dim, hid_dim, out_dim, n_layers_gcn,
                        dropout, activation=activation, residual=True, norm=norm)
         self.temporal = Transformer(d_model=out_dim, n_heads=n_heads,
@@ -33,7 +34,8 @@ class GCNTemporalFusion(nn.Module):
         for t, g in enumerate(graph_seq):
             h_t = self.gcn(g, g.ndata['feature'])
             h_t = SubgraphPooling(h_t, mrq_graph[t])
-            padded_ht = torch.zeros(total_nodes, self.in_dim, device=device)
+            # Use GCN output dim (out_dim), not input feature dim (in_dim)
+            padded_ht = torch.zeros(total_nodes, self.out_dim, device=device)
             padded_ht[g.ndata[dgl.NID]] = h_t
             H_nodes.append(h_t)
             pooled_nodes.append(padded_ht) 
