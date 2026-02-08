@@ -59,6 +59,8 @@ def obtain_act(name=None):
     """
     Return activation function module
     """
+    if name is not None:
+        name = name.lower()
     if name == 'relu':
         act = nn.ReLU(inplace=True)
     elif name == "gelu":
@@ -632,6 +634,7 @@ class Dataset:
             self.is_single_graph = True
             node_labels = self.node_label[0]
             num_nodes = self.graph_list[0].num_nodes()
+            self.total_nodes = num_nodes
             all_node_ids = list(range(num_nodes))
             zero_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 0]
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
@@ -777,6 +780,9 @@ def get_args():
     parser.add_argument("--replace_ratio", type=float, default=0, help="Replace ratio for GraphMAE")
     
     parser.add_argument("--dropout", type=float, default=0, help="Dropout rate for node in training")
+    parser.add_argument("--n_heads", type=int, default=4, help="Number of attention heads")
+    parser.add_argument("--n_layers_attention", type=int, default=2, help="Number of transformer layers")
+    parser.add_argument("--ff_dim_transformer", type=int, default=32, help="Feedforward dimension in transformer")
     
     
     args = parser.parse_args()

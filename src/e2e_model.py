@@ -40,8 +40,8 @@ class UnifyMLPDetector(object):
 
         self.model = UNIMLP_E2E(
             total_nodes,
-            in_feats=args.in_dim,
-            embed_dims=args.hidden_dim,
+            in_feats=dataset.in_dim,
+            embed_dims=args.hid_dim,
             stitch_mlp_layers=args.stitch_mlp_layers,
             final_mlp_layers=args.final_mlp_layers,
             dropout_rate=args.dropout,

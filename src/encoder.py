@@ -12,7 +12,7 @@ from dgl.utils import expand_as_pair
 import sympy
 import scipy
 
-from utils import obtain_act, obtain_norm, obtain_pooler, sce_loss
+from utils import obtain_act, obtain_norm
 
 class GCN(nn.Module):
     def __init__(self,
