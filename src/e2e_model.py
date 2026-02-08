@@ -20,9 +20,9 @@ def get_best_f1(labels, probs):
     return best_f1, best_thre
 
 LABEL_DICT_KEYS = {
-    'n':"node_labels",
-    'e':'edge_labels',
-    'g':'graph_labels',
+    'n':"node_label",
+    'e':'edge_label',
+    'g':'graph_label',
 }
 
 class UnifyMLPDetector(object):
