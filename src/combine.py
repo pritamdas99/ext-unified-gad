@@ -35,13 +35,12 @@ class GCNTemporalFusion(nn.Module):
         print(f"[DEBUG GCNTemporalFusion] in_dim={self.in_dim}, out_dim={self.out_dim}, total_nodes={total_nodes}, T={len(graph_seq)}")
 
         for t, g in enumerate(graph_seq):
+            print(f"[NaN CHECK] t={t}, input features has NaN: {g.ndata['feature'].isnan().any().item()}, shape={g.ndata['feature'].shape}")
             h_t = self.gcn(g, g.ndata['feature'])
-            print(f"[DEBUG GCNTemporalFusion] t={t}, GCN output h_t.shape={h_t.shape}")
+            print(f"[NaN CHECK] t={t}, GCN output has NaN: {h_t.isnan().any().item()}, shape={h_t.shape}")
             h_t = SubgraphPooling(h_t, mrq_graph[t])
-            print(f"[DEBUG GCNTemporalFusion] t={t}, after SubgraphPooling h_t.shape={h_t.shape}")
-            # BUG: self.out_dim is set to in_dim instead of out_dim — padding tensor may have wrong dim
+            print(f"[NaN CHECK] t={t}, after SubgraphPooling has NaN: {h_t.isnan().any().item()}, shape={h_t.shape}")
             padded_ht = torch.zeros(total_nodes, self.out_dim, device=device)
-            print(f"[DEBUG GCNTemporalFusion] t={t}, padded_ht.shape={padded_ht.shape}")
             padded_ht[g.ndata[dgl.NID]] = h_t
             H_nodes.append(h_t)
             pooled_nodes.append(padded_ht)
@@ -52,10 +51,11 @@ class GCNTemporalFusion(nn.Module):
         pooled_nodes = torch.stack(pooled_nodes)
         print(f"[DEBUG GCNTemporalFusion] pooled_nodes.shape={pooled_nodes.shape}, mask_t.shape={mask_t.shape}")
 
+        print(f"[NaN CHECK] pooled_nodes has NaN: {pooled_nodes.isnan().any().item()}")
         C = self.temporal(pooled_nodes, mask_t)
-        print(f"[DEBUG GCNTemporalFusion] Transformer output C.shape={C.shape}")
+        print(f"[NaN CHECK] Transformer output has NaN: {C.isnan().any().item()}, shape={C.shape}")
 
         h_sub_t = [C[t][g.ndata[dgl.NID]] for t, g in enumerate(graph_seq)]
         for t, h in enumerate(h_sub_t):
-            print(f"[DEBUG GCNTemporalFusion] h_sub_t[{t}].shape={h.shape}")
+            print(f"[NaN CHECK] h_sub_t[{t}] has NaN: {h.isnan().any().item()}, shape={h.shape}")
         return h_sub_t
