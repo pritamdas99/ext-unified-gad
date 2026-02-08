@@ -42,12 +42,12 @@ class GCN(nn.Module):
         else:
             # input projection (no residual)
             self.gcn_layers.append(GraphConv(
-                in_dim, num_hidden, residual=residual, norm=norm, activation=obtain_act(activation)))
+                in_dim, num_hidden, residual=residual, norm=obtain_norm(norm), activation=obtain_act(activation)))
             # hidden layers
             for l in range(1, num_layers - 1):
                 # due to multi-head, the in_dim = num_hidden * num_heads
                 self.gcn_layers.append(GraphConv(
-                    num_hidden, num_hidden, residual=residual, norm=norm, activation=obtain_act(activation)))
+                    num_hidden, num_hidden, residual=residual, norm=obtain_norm(norm), activation=obtain_act(activation)))
             # output projection
             self.gcn_layers.append(GraphConv(
                 num_hidden, out_dim, residual=last_residual, activation=last_activation, norm=last_norm))
