@@ -43,7 +43,7 @@ class GCNTemporalFusion(nn.Module):
 
         pooled_nodes = torch.stack(pooled_nodes)
 
-        C = self.temporal(pooled_nodes, src_key_padding_mask=mask_t)
+        C = self.temporal(pooled_nodes, mask_t)
 
         h_sub_t = [C[t][g.ndata[dgl.NID]] for t, g in enumerate(graph_seq)] 
         return h_sub_t  

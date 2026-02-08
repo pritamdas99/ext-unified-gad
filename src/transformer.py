@@ -60,7 +60,7 @@ class Transformer(nn.Module):
 
     def forward(self, GNN_output, mask):
         GNN_output = GNN_output.transpose(0, 1)
-        raw_input = raw_input.transpose(0, 1)
+        # raw_input = raw_input.transpose(0, 1)
         GNN_output = GNN_output.float()
         raw_input = raw_input.float()
         mask = mask.bool()
