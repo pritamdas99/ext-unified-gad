@@ -26,7 +26,7 @@ class GCN(nn.Module):
                  norm=None,
                  ):
         super(GCN, self).__init__()
-        self.out_dim = in_dim
+        self.out_dim = out_dim  # was in_dim — should match actual GCN output dim
         self.num_layers = num_layers
         self.gcn_layers = nn.ModuleList()
         self.activation = activation
