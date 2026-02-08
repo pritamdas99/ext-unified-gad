@@ -28,11 +28,12 @@ class GCNTemporalFusion(nn.Module):
         H_nodes = []      # node embeddings per timestamp
         pooled_nodes = [] # pooled embeddings for transformer
 
-        mask_t = torch.ones(len(graph_seq), total_nodes)
+        device = graph_seq[0].device
+        mask_t = torch.ones(len(graph_seq), total_nodes, device=device)
         for t, g in enumerate(graph_seq):
             h_t = self.gcn(g, g.ndata['feature'])
-            h_t = SubgraphPooling(h_t, mrq_graph[t])          
-            padded_ht = torch.zeros(total_nodes, self.in_dim)
+            h_t = SubgraphPooling(h_t, mrq_graph[t])
+            padded_ht = torch.zeros(total_nodes, self.in_dim, device=device)
             padded_ht[g.ndata[dgl.NID]] = h_t
             H_nodes.append(h_t)
             pooled_nodes.append(padded_ht) 
