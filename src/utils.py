@@ -320,7 +320,7 @@ def collate_with_sp(batch):
 
     return {
         'graphs': graphs,
-        'labels_dicts': labels_dicts,
+        'labels_dict': labels_dicts,
         'nodes_list': nodes_list,
         'edges_list': edges_list,
         'sp_matrices': sp_matrices
