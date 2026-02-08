@@ -8,10 +8,10 @@ class CustomTransformerEncoder(nn.Module):
         self.layers = nn.ModuleList([encoder_layer for _ in range(num_layers)])
         self.num_layers = num_layers
 
-    def forward(self, src, raw_src, src_mask=None, src_key_padding_mask=None):
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
         output = src
         for layer in self.layers:
-            output = layer(output, raw_src, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+            output = layer(output, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
         return output
 
 class CustomTransformerEncoderLayer(nn.Module):
@@ -60,9 +60,9 @@ class Transformer(nn.Module):
 
     def forward(self, GNN_output, mask):
         GNN_output = GNN_output.transpose(0, 1)
-        # raw_input = raw_input.transpose(0, 1)
+        
         GNN_output = GNN_output.float()
-        raw_input = raw_input.float()
+        
         mask = mask.bool()
 
         transformer_output = self.transformer_encoder(GNN_output, src_key_padding_mask=mask)
