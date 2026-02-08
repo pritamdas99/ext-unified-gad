@@ -13,7 +13,7 @@ class GCNTemporalFusion(nn.Module):
                  n_heads=4, n_layers_attention=2, ff_dim=256, dropout=0.1):
         super().__init__()
         self.in_dim = in_dim
-        self.out_dim = out_dim
+        self.out_dim = in_dim
         self.gcn = GCN(in_dim, hid_dim, out_dim, n_layers_gcn,
                        dropout, activation=activation, residual=True, norm=norm)
         self.temporal = Transformer(d_model=out_dim, n_heads=n_heads,
