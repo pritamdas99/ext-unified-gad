@@ -54,6 +54,10 @@ def apply_gradient(model,loss):
     loss.backward(retain_graph=True)
 
 def pareto_fn(w_list, c_list, model, num_tasks, loss_list):
+    # skip gradient-based Pareto when grads are disabled (e.g. eval/no_grad)
+    if not torch.is_grad_enabled():
+        return np.array(w_list)
+
     grads = [[] for i in range(len(loss_list))]
 
     for i, loss in enumerate(loss_list):

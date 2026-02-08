@@ -151,6 +151,9 @@ class UnifyMLPDetector(object):
                 labels = labels.cpu().numpy()
             if torch.is_tensor(probs):
                 probs = probs.cpu().numpy()
+            # guard against NaN in probs from unstable training
+            if np.isnan(probs).any():
+                probs = np.nan_to_num(probs, nan=0.0)
             score['MacroF1'] = get_best_f1(labels, probs)[0]
             score['AUROC'] = roc_auc_score(labels, probs)
             score['AUPRC'] = average_precision_score(labels, probs)
@@ -206,7 +209,8 @@ class UnifyMLPDetector(object):
                     loss_items_total_train[k] += result[k]
                 optimizer.zero_grad()
                 loss.backward()
-                # pcgrad_fn(self.model, losses=loss, optimizer=optimizer)
+                # clip gradients to prevent explosion from Pareto-weighted updates
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
                 optimizer.step()
                 # scheduler.step()
