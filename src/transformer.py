@@ -59,14 +59,15 @@ class Transformer(nn.Module):
         # self.to(device)
 
     def forward(self, GNN_output, mask):
-        GNN_output = GNN_output.transpose(0, 1)
-        
+        # GNN_output shape: (T, total_nodes, D)
+        # No transpose — attend over temporal dim T (seq=T, batch=total_nodes)
+        # instead of over nodes which causes OOM
         GNN_output = GNN_output.float()
-        
-        mask = mask.bool()
+        # key_padding_mask requires shape (batch=total_nodes, seq=T), so transpose mask
+        mask_kp = mask.T.bool()
 
-        transformer_output = self.transformer_encoder(GNN_output, src_key_padding_mask=mask)
-        transformer_output = transformer_output.transpose(0, 1)
-        transformer_output[mask] = 0
+        transformer_output = self.transformer_encoder(GNN_output, src_key_padding_mask=mask_kp)
+        # zero out padded positions using original mask shape (T, total_nodes)
+        transformer_output[mask.bool()] = 0
 
         return transformer_output
