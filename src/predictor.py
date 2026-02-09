@@ -78,7 +78,7 @@ class UNIMLP(nn.Module):
             return node_logits, graph_logits
 
 class UNIMLP_E2E(nn.Module):
-    def __init__(self, total_nodes, in_feats, embed_dims=32, num_classes=2, stitch_mlp_layers=1, final_mlp_layers=2, dropout_rate=0, khop=0, activation='ReLU', graph_batch_num=1, n_heads=4, n_layers_attention=2, ff_dim=32, output_route='n', input_route='n', **kwargs):
+    def __init__(self, total_nodes, original_graph, in_feats, embed_dims=32, num_classes=2, stitch_mlp_layers=1, final_mlp_layers=2, dropout_rate=0, khop=0, activation='ReLU', graph_batch_num=1, n_heads=4, n_layers_attention=2, ff_dim=32, output_route='n', input_route='n', **kwargs):
         super().__init__()
         # batch size
         self.graph_batch_num = graph_batch_num
@@ -91,8 +91,9 @@ class UNIMLP_E2E(nn.Module):
         self.n_layers_attention = n_layers_attention
         self.ff_dim = ff_dim
         self.total_nodes = total_nodes
+        self.original_graph = original_graph
 
-        self.model = GCNTemporalFusion(in_dim=in_feats, hid_dim=embed_dims, out_dim=in_feats, n_layers_gcn=2, activation=activation, norm='batch',
+        self.model = GCNTemporalFusion(original_graph=self.original_graph, in_dim=in_feats, hid_dim=embed_dims, out_dim=in_feats, n_layers_gcn=2, activation=activation, norm='batch',
                  n_heads=n_heads, n_layers_attention=n_layers_attention, ff_dim=ff_dim, dropout=dropout_rate)
 
         ######## network structure start

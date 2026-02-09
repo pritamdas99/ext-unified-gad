@@ -40,6 +40,7 @@ class UnifyMLPDetector(object):
 
         self.model = UNIMLP_E2E(
             total_nodes,
+            dataset.original_graph,
             in_feats=dataset.in_dim,
             embed_dims=args.hid_dim,
             stitch_mlp_layers=args.stitch_mlp_layers,
