@@ -17,7 +17,11 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     print('Dataset: {}, Cross_mode: {}, Hop: {}, Kernels: {}, Model: {}'.format(dataset_name, cross_mode, hop, kernels, full_model_name))
     dataset.prepare_dataset()
     dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True, num_workers=args.num_workers)
-    train_dataloader, val_dataloader, test_dataloader =  dataset.get_graph_and_sp_dataloaders()
+    if not hasattr(dataset, '_dataloaders_cached'):
+        train_dataloader, val_dataloader, test_dataloader = dataset.get_graph_and_sp_dataloaders()
+        dataset._dataloaders_cached = (train_dataloader, val_dataloader, test_dataloader)
+    else:
+        train_dataloader, val_dataloader, test_dataloader = dataset._dataloaders_cached
 
     e2e_model = UnifyMLPDetector(dataset.total_nodes, dataset, (train_dataloader, val_dataloader, test_dataloader), cross_mode=cross_mode, args=args)
     ST = time.time()
