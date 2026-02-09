@@ -193,7 +193,7 @@ class UnifyMLPDetector(object):
                 loss = torch.stack(loss).mean() # average the loss of different tasks
                 result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
 
-                print(f"[DEBUG AFTER LOSS] loss={loss} loss_items={loss_items} logits_dict={logits_dict[:70]}")
+                print(f"[DEBUG AFTER LOSS] loss={loss} loss_items={loss_items} logits_dict={logits_dict}")
 
                 for k in loss_items_total_train:
                     loss_items_total_train[k] += result[k]
@@ -336,7 +336,7 @@ class UnifyMLPDetector(object):
                                 probs_mul_t=[]
                                 for t, prob_t in enumerate(probs):
                                     probs_mul_t.append(prob_t[k])
-                                probs_dict_val_mul[k].append(probs_mul_t)
+                                probs_dict_test_mul[k].append(probs_mul_t)
                             
                         
                         del batched_data
@@ -347,8 +347,8 @@ class UnifyMLPDetector(object):
                         del probs
                     # clear GPU cache
                     for k in self.output_route:
-                        labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
-                        probs_dict_val_mul[k] = torch.cat([t for t in probs_dict_val_mul[k]], dim=1)
+                        labels_dict_test_mul[k] = torch.cat([t for t in labels_dict_test_mul[k]], dim=1)
+                        probs_dict_test_mul[k] = torch.cat([t for t in probs_dict_test_mul[k]], dim=1)
                     # get test score
                     score_test = self.eval(labels_dict_test_mul, probs_dict_test_mul)
                     del labels_dict_test_mul
