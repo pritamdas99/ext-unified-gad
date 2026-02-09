@@ -231,6 +231,10 @@ class UnifyMLPDetector(object):
                     # FIXME: device issue?
                     batched_graph = [graph.to(self.args.device) for graph in batched_graph]
                     
+                    for t,label_dict in enumerate(batched_labels_dict):
+                        for k,v in label_dict.items():
+                            batched_labels_dict[t][k] = v.to(self.args.device)
+                    
                     for k in batched_labels_dict[0]:
                         labels_mul_t=[]
                         kk=NAME_MAP[k]
@@ -295,8 +299,8 @@ class UnifyMLPDetector(object):
                     torch.cuda.empty_cache()
                     self.best_score = score_overall_val
                     self.patience_knt = 0
-                    labels_dict_val_mul = []
-                    probs_dict_val_mul = []
+                    labels_dict_test_mul = []
+                    probs_dict_test_mul = []
                     loss_items_total_test = {k:0 for k in self.output_route }
                     # eval loop
                     for batched_data in self.test_dataloader:
@@ -306,13 +310,18 @@ class UnifyMLPDetector(object):
 
                         batched_graph = [graph.to(self.args.device) for graph in batched_graph]
                         for t,label_dict in enumerate(batched_labels_dict):
-                            labels_dict_test_mul_t = {k:[] for k in self.output_route }
                             for k,v in label_dict.items():
                                 batched_labels_dict[t][k] = v.to(self.args.device)
-                                if k[0] in self.output_route:
-                                    labels_dict_test_mul_t[k[0]].append(v)
-                            labels_dict_test_mul.append(labels_dict_test_mul_t)
+                    
+                        for k in batched_labels_dict[0]:
+                            labels_mul_t=[]
+                            kk=NAME_MAP[k]
+                            for t,label_dict in enumerate(batched_labels_dict):
+                                if kk[0] in self.output_route:
+                                    labels_mul_t.append(label_dict[kk])
+                            labels_dict_test_mul[k].append(labels_mul_t.to(self.args.device))
                         batched_khop_graph = [graph.to(self.args.device) for graph in batched_khop_graph]
+                        
                         self.model.eval()
                         # get test result
                         with torch.no_grad():
@@ -321,13 +330,14 @@ class UnifyMLPDetector(object):
                             result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
                             for k in loss_items_total_test:
                                 loss_items_total_test[k] += result[k]
-                            
+                                
                             probs = self.get_probs(logits_dict)
-                            for t, prob_t in enumerate(probs):
-                                probs_dict_test_mul_t = {k:[] for k in self.output_route }
-                                for k in prob_t:
-                                    probs_dict_test_mul_t[k].append(prob_t[k])
-                                probs_dict_test_mul.append(probs_dict_test_mul_t)
+                            for k in probs[0]:
+                                probs_mul_t=[]
+                                for t, prob_t in enumerate(probs):
+                                    probs_mul_t.append(prob_t[k])
+                                probs_dict_val_mul[k].append(probs_mul_t)
+                            
                         
                         del batched_data
                         del batched_graph
@@ -336,10 +346,9 @@ class UnifyMLPDetector(object):
                         del logits_dict
                         del probs
                     # clear GPU cache
-                    for t in range(len(labels_dict_test_mul)):
-                        for k in self.output_route:
-                            labels_dict_test_mul[t][k] = torch.cat([t for t in labels_dict_test_mul[t][k]])
-                            probs_dict_test_mul[t][k] = torch.cat([t for t in probs_dict_test_mul[t][k]])
+                    for k in self.output_route:
+                        labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
+                        probs_dict_val_mul[k] = torch.cat([t for t in probs_dict_val_mul[k]], dim=1)
                     # get test score
                     score_test = self.eval(labels_dict_test_mul, probs_dict_test_mul)
                     del labels_dict_test_mul
