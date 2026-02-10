@@ -206,10 +206,6 @@ class UNIMLP_E2E(nn.Module):
 
             h = self.model(self.total_nodes, g_clone, sg_matrix_clone)
 
-            print(f"[DEBUG UNIMLP_E2E] embed_dims={self.embed_dims}, num h timesteps={len(h)}")
-            for t_idx, h_t in enumerate(h):
-                print(f"[DEBUG UNIMLP_E2E] h[{t_idx}].shape={h_t.shape}")
-
             for t, g_t in enumerate(g_clone):
                 state_dict = {}
                 if 'n' in self.output_route:
@@ -226,15 +222,10 @@ class UNIMLP_E2E(nn.Module):
             final_state = []
             for t, inner_t in enumerate(inner_state):
                 state_dict = inner_t
-                for o_r in self.output_route:
-                    print(f"[DEBUG UNIMLP_E2E] t={t}, state_dict['{o_r}'].shape={state_dict[o_r].shape}")
                 for idx, layer in enumerate(self.layers):
                     if isinstance(layer, nn.ParameterDict):# agg layers
                         models_last = self.layers[idx-1] # model in last layer
                         for o_r in self.output_route:
-                            # BUG: state_dict[o_r] has dim=in_feats (e.g. 400) but models_last
-                            # contains nn.Linear(embed_dims, embed_dims) (e.g. 32x32)
-                            print(f"[DEBUG UNIMLP_E2E] layer_idx={idx}, o_r='{o_r}', state_dict[o_r].shape={state_dict[o_r].shape}, models_last Linear expects in_features={self.embed_dims}")
                             state_dict[o_r] = reduce(
                                 torch.Tensor.add_,
                                 [

@@ -114,9 +114,7 @@ class UnifyMLPDetector(object):
             c_list = []
             loss_items_dict = {'n': 0, 'e': 0, 'g': 0}
             for o_r in logits_dict:
-                print(f"[NaN CHECK get_loss] o_r='{o_r}', logits has NaN: {logits_dict[o_r].isnan().any().item()}, loss_weight={self.loss_weight_dict[o_r][0]}")
                 partial_loss = F.cross_entropy(logits_dict[o_r], labels_dict[LABEL_DICT_KEYS[o_r]], weight=torch.tensor([1., self.loss_weight_dict[o_r][0]], device=self.args.device)) # sensitive
-                print(f"[NaN CHECK get_loss] o_r='{o_r}', partial_loss={partial_loss.item()}")
                 if o_r in self.input_route:
                     # loss = partial_loss if loss is None else (loss + partial_loss * self.loss_weight_dict[o_r][1])
                     loss_list.append(partial_loss)
@@ -297,8 +295,8 @@ class UnifyMLPDetector(object):
                     torch.cuda.empty_cache()
                     self.best_score = score_overall_val
                     self.patience_knt = 0
-                    labels_dict_val_mul = []
-                    probs_dict_val_mul = []
+                    labels_dict_test_mul = []
+                    probs_dict_test_mul = []
                     loss_items_total_test = {k:0 for k in self.output_route }
                     # eval loop
                     for batched_data in self.test_dataloader:
