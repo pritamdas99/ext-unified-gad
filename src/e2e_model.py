@@ -270,8 +270,7 @@ class UnifyMLPDetector(object):
                             probs_mul_t=[]
                             for t, prob_t in enumerate(probs):
                                 probs_mul_t.append(prob_t[k])
-                            probs_mul_t = torch.tensor(probs_mul_t, dtype=torch.float64)
-                            probs_dict_val_mul[k].append(probs_mul_t.to(self.args.device))
+                            probs_dict_val_mul[k].append(probs_mul_t)
                     
                     del batched_data
                     del batched_graph
