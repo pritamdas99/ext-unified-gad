@@ -280,7 +280,7 @@ class UnifyMLPDetector(object):
                     del probs
                 with torch.no_grad():
                     for k in self.output_route:
-                        print("***************************##################",torch.tensor(labels_dict_val_mul[k][0]).shape)
+                        print("***************************##################", type(labels_dict_val_mul[k]),len(labels_dict_val_mul[k]),type(labels_dict_val_mul[k][0]),len(labels_dict_val_mul[k][0]))
                         labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
                         probs_dict_val_mul[k] = torch.cat([t for t in probs_dict_val_mul[k]], dim=1)
                     # get eval score
