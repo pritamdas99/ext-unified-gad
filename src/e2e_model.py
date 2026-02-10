@@ -231,17 +231,17 @@ class UnifyMLPDetector(object):
                     # FIXME: device issue?
                     batched_graph = [graph.to(self.args.device) for graph in batched_graph]
                     
-                    for t,label_dict in enumerate(batched_labels_dict):
-                        for k,v in label_dict.items():
-                            batched_labels_dict[t][k] = v.to(self.args.device)
                     
                     for k in batched_labels_dict[0]:
                         labels_mul_t=[]
                         for t,label_dict in enumerate(batched_labels_dict):
                             if k[0] in self.output_route:
                                 labels_mul_t.append(label_dict[k])
-                        labels_mul_t = torch.tensor(labels_mul_t, dtype=torch.float64)
-                        labels_dict_val_mul[k[0]].append(labels_mul_t.to(self.args.device))
+                        labels_dict_val_mul[k[0]].append(labels_mul_t)
+                        
+                    for t,label_dict in enumerate(batched_labels_dict):
+                        for k,v in label_dict.items():
+                            batched_labels_dict[t][k] = v.to(self.args.device)
                             
                     
                     # for t,label_dict in enumerate(batched_labels_dict):
@@ -281,7 +281,7 @@ class UnifyMLPDetector(object):
                     del probs
                 with torch.no_grad():
                     for k in self.output_route:
-                        print("***************************##################",labels_dict_val_mul[k][0].shape)
+                        print("***************************##################",torch.tensor(labels_dict_val_mul[k][0]).shape)
                         labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
                         probs_dict_val_mul[k] = torch.cat([t for t in probs_dict_val_mul[k]], dim=1)
                     # get eval score
