@@ -387,8 +387,8 @@ class UnifyMLPDetector(object):
                     torch.cuda.empty_cache()
                     self.best_score = score_overall_val
                     self.patience_knt = 0
-                    labels_dict_test_mul = []
-                    probs_dict_test_mul = []
+                    labels_dict_test_mul = {k:[] for k in self.output_route }
+                    probs_dict_test_mul = {k:[] for k in self.output_route }
                     loss_items_total_test = {k:0 for k in self.output_route }
                     # eval loop
                     for batched_data in self.test_dataloader:
@@ -408,7 +408,6 @@ class UnifyMLPDetector(object):
                                 if k[0] in self.output_route:
                                     labels_mul_t.append(label_dict[k].tolist())
                             
-                            print("***********************",type(labels_mul_t[0]))
                             # labels_mul_t = pad_to_rectangle(labels_mul_t)
                                     
                             if not labels_dict_test_mul[k[0]]:
@@ -448,8 +447,8 @@ class UnifyMLPDetector(object):
                         del probs
                     # clear GPU cache
                     for k in self.output_route:
-                        labels_dict_val_mul[k] = torch.tensor(pad_to_rectangle(labels_dict_val_mul[k]),dtype=torch.float64)
-                        probs_dict_val_mul[k] = torch.tensor(pad_to_rectangle(probs_dict_val_mul[k]),dtype=torch.float64)
+                        labels_dict_test_mul[k] = torch.tensor(pad_to_rectangle(labels_dict_test_mul[k]),dtype=torch.float64)
+                        probs_dict_test_mul[k] = torch.tensor(pad_to_rectangle(probs_dict_test_mul[k]),dtype=torch.float64)
                         
                     # get test score
                     score_test = self.eval(labels_dict_test_mul, probs_dict_test_mul)
