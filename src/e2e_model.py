@@ -231,17 +231,21 @@ class UnifyMLPDetector(object):
                     # FIXME: device issue?
                     batched_graph = [graph.to(self.args.device) for graph in batched_graph]
                     
+                    for t,label_dict in enumerate(batched_labels_dict):
+                        for k,v in label_dict.items():
+                            batched_labels_dict[t][k] = v.to(self.args.device)
+                    
                     
                     for k in batched_labels_dict[0]:
                         labels_mul_t=[]
                         for t,label_dict in enumerate(batched_labels_dict):
                             if k[0] in self.output_route:
                                 labels_mul_t.append(label_dict[k])
+                        labels_mul_t = torch.stack(labels_mul_t, dim=0)
+
                         labels_dict_val_mul[k[0]].append(labels_mul_t)
                         
-                    for t,label_dict in enumerate(batched_labels_dict):
-                        for k,v in label_dict.items():
-                            batched_labels_dict[t][k] = v.to(self.args.device)
+                
                             
                     
                     # for t,label_dict in enumerate(batched_labels_dict):
