@@ -400,13 +400,22 @@ class UnifyMLPDetector(object):
                         for t,label_dict in enumerate(batched_labels_dict):
                             for k,v in label_dict.items():
                                 batched_labels_dict[t][k] = v.to(self.args.device)
-                    
+                        
+                        
                         for k in batched_labels_dict[0]:
                             labels_mul_t=[]
                             for t,label_dict in enumerate(batched_labels_dict):
                                 if k[0] in self.output_route:
-                                    labels_mul_t.append(label_dict[k])
-                            labels_dict_test_mul[k[0]].append(labels_mul_t)
+                                    labels_mul_t.append(label_dict[k].tolist())
+                            
+                            print("***********************",type(labels_mul_t[0]))
+                            # labels_mul_t = pad_to_rectangle(labels_mul_t)
+                                    
+                            if not labels_dict_test_mul[k[0]]:
+                                labels_dict_test_mul[k[0]] = labels_mul_t
+                            else:
+                                labels_dict_test_mul[k[0]] = concat_ragged_lists(labels_dict_test_mul[k[0]],labels_mul_t)
+                            
                         batched_khop_graph = [graph.to(self.args.device) for graph in batched_khop_graph]
                         
                         self.model.eval()
@@ -422,8 +431,13 @@ class UnifyMLPDetector(object):
                             for k in probs[0]:
                                 probs_mul_t=[]
                                 for t, prob_t in enumerate(probs):
-                                    probs_mul_t.append(prob_t[k])
-                                probs_dict_test_mul[k].append(probs_mul_t)
+                                    probs_mul_t.append(prob_t[k].tolist())
+                                # probs_mul_t = pad_to_rectangle(probs_mul_t)
+                                if not probs_dict_val_mul[k[0]]:
+                                    probs_dict_test_mul[k[0]] = probs_mul_t
+                                else:
+                                    probs_dict_test_mul[k[0]] = concat_ragged_lists(probs_dict_test_mul[k[0]],probs_mul_t)
+                            
                             
                         
                         del batched_data
@@ -434,8 +448,9 @@ class UnifyMLPDetector(object):
                         del probs
                     # clear GPU cache
                     for k in self.output_route:
-                        labels_dict_test_mul[k] = torch.cat([t for t in labels_dict_test_mul[k]], dim=1)
-                        probs_dict_test_mul[k] = torch.cat([t for t in probs_dict_test_mul[k]], dim=1)
+                        labels_dict_val_mul[k] = torch.tensor(pad_to_rectangle(labels_dict_val_mul[k]),dtype=torch.float64)
+                        probs_dict_val_mul[k] = torch.tensor(pad_to_rectangle(probs_dict_val_mul[k]),dtype=torch.float64)
+                        
                     # get test score
                     score_test = self.eval(labels_dict_test_mul, probs_dict_test_mul)
                     del labels_dict_test_mul
