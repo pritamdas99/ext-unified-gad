@@ -432,7 +432,7 @@ class UnifyMLPDetector(object):
                                 for t, prob_t in enumerate(probs):
                                     probs_mul_t.append(prob_t[k].tolist())
                                 # probs_mul_t = pad_to_rectangle(probs_mul_t)
-                                if not probs_dict_val_mul[k[0]]:
+                                if not probs_dict_test_mul[k[0]]:
                                     probs_dict_test_mul[k[0]] = probs_mul_t
                                 else:
                                     probs_dict_test_mul[k[0]] = concat_ragged_lists(probs_dict_test_mul[k[0]],probs_mul_t)
