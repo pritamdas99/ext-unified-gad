@@ -260,7 +260,8 @@ class UnifyMLPDetector(object):
                         for t,label_dict in enumerate(batched_labels_dict):
                             if k[0] in self.output_route:
                                 labels_mul_t.append(label_dict[k].tolist())
-                                
+                        
+                        print("***********************",type(labels_mul_t[0]))
                         labels_mul_t = pad_to_rectangle(labels_mul_t)
                                 
                         if not labels_dict_val_mul[k[0]]:
