@@ -315,7 +315,7 @@ class UnifyMLPDetector(object):
                     del probs
                 with torch.no_grad():
                     for k in self.output_route:
-                        print("***************************##################", type(labels_dict_val_mul[k]),len(labels_dict_val_mul[k]),type(labels_dict_val_mul[k][0]),len(labels_dict_val_mul[k][0]),type(labels_dict_val_mul[k][0][0]),len(labels_dict_val_mul[k][0][0]))
+                        print("***************************##################", labels_dict_val_mul[k].shape, probs_dict_val_mul[k].shape)
                         labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
                         # labels_dict_val_mul[k] = torch.cat(
                         #     [t if isinstance(t, torch.Tensor) else torch.tensor(t, dtype=torch.float32) 
