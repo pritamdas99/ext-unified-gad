@@ -279,8 +279,9 @@ class UnifyMLPDetector(object):
                     del probs
                 with torch.no_grad():
                     for k in self.output_route:
-                        labels_dict_val_mul[k] = torch.cat([torch.tensor(t) for t in labels_dict_val_mul[k]], dim=1)
-                        probs_dict_val_mul[k] = torch.cat([torch.tensor(t) for t in probs_dict_val_mul[k]], dim=1)
+                        print("***************************##################",labels_dict_val_mul[k][0].shape)
+                        labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
+                        probs_dict_val_mul[k] = torch.cat([t for t in probs_dict_val_mul[k]], dim=1)
                     # get eval score
                     score_val = self.eval(labels_dict_val_mul, probs_dict_val_mul)
                     del labels_dict_val_mul
@@ -346,8 +347,8 @@ class UnifyMLPDetector(object):
                         del probs
                     # clear GPU cache
                     for k in self.output_route:
-                        labels_dict_test_mul[k] = torch.cat([torch.tensor(t) for t in labels_dict_test_mul[k]], dim=1)
-                        probs_dict_test_mul[k] = torch.cat([torch.tensor(t) for t in probs_dict_test_mul[k]], dim=1)
+                        labels_dict_test_mul[k] = torch.cat([t for t in labels_dict_test_mul[k]], dim=1)
+                        probs_dict_test_mul[k] = torch.cat([t for t in probs_dict_test_mul[k]], dim=1)
                     # get test score
                     score_test = self.eval(labels_dict_test_mul, probs_dict_test_mul)
                     del labels_dict_test_mul
