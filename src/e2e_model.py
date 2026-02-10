@@ -8,6 +8,22 @@ from Pareto_fn import pareto_fn
 
 import numpy as np
 
+def concat_ragged_lists(list1, list2):
+    """
+    Concatenate two ragged 2D lists along columns (dim=1) row by row.
+    
+    Args:
+        list1, list2: 2D lists with the same number of rows (can be ragged)
+    
+    Returns:
+        concatenated: 2D list, ragged
+    """
+    if len(list1) != len(list2):
+        raise ValueError("Both lists must have the same number of rows")
+    
+    concatenated = [row1 + row2 for row1, row2 in zip(list1, list2)]
+    return concatenated
+
 def rowwise_roc_auc(y_true, y_pred):
     """
     Compute ROC AUC row-wise for 2D arrays (timestamps x labels),
@@ -292,13 +308,12 @@ class UnifyMLPDetector(object):
                                 labels_mul_t.append(label_dict[k].tolist())
                         
                         print("***********************",type(labels_mul_t[0]))
-                        labels_mul_t = pad_to_rectangle(labels_mul_t)
+                        # labels_mul_t = pad_to_rectangle(labels_mul_t)
                                 
                         if not labels_dict_val_mul[k[0]]:
-                            labels_dict_val_mul[k[0]] = torch.tensor(labels_mul_t)
+                            labels_dict_val_mul[k[0]] = labels_mul_t
                         else:
-                            labels_mul_t = torch.tensor(labels_mul_t)
-                            labels_dict_val_mul[k[0]] = torch.cat([labels_dict_val_mul[k[0]],labels_mul_t], dim=1)
+                            labels_dict_val_mul[k[0]] = concat_ragged_lists(labels_dict_val_mul[k[0]],labels_mul_t)
                         
                 
                             
@@ -329,12 +344,11 @@ class UnifyMLPDetector(object):
                             probs_mul_t=[]
                             for t, prob_t in enumerate(probs):
                                 probs_mul_t.append(prob_t[k].tolist())
-                            probs_mul_t = pad_to_rectangle(probs_mul_t)
+                            # probs_mul_t = pad_to_rectangle(probs_mul_t)
                             if not probs_dict_val_mul[k[0]]:
-                                probs_dict_val_mul[k[0]] = torch.tensor(probs_mul_t)
+                                probs_dict_val_mul[k[0]] = probs_mul_t
                             else:
-                                labels_mul_t = torch.tensor(probs_mul_t)
-                                probs_dict_val_mul[k[0]] = torch.cat([probs_dict_val_mul[k[0]],labels_mul_t], dim=1)
+                                probs_dict_val_mul[k[0]] = concat_ragged_lists(probs_dict_val_mul[k[0]],probs_mul_t)
                             
                     
                     del batched_data
@@ -345,6 +359,8 @@ class UnifyMLPDetector(object):
                     del probs
                 with torch.no_grad():
                     for k in self.output_route:
+                        labels_dict_val_mul[k] = torch.tensor(pad_to_rectangle(labels_dict_val_mul),dtype=torch.float64)
+                        probs_dict_val_mul[k] = torch.tensor(pad_to_rectangle(probs_dict_val_mul),dtype=torch.float64)
                         print("***************************##################", labels_dict_val_mul[k].shape, probs_dict_val_mul[k].shape)
                         # labels_dict_val_mul[k] = torch.cat([t for t in labels_dict_val_mul[k]], dim=1)
                         # labels_dict_val_mul[k] = torch.cat(
