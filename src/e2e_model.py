@@ -193,7 +193,7 @@ class UnifyMLPDetector(object):
                 loss = torch.stack(loss).mean() # average the loss of different tasks
                 result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
 
-                print(f"[DEBUG AFTER LOSS] loss={loss} loss_items={loss_items} logits_dict={logits_dict}")
+                print(f"[DEBUG AFTER LOSS train] loss={loss} loss_items={loss_items} logits_dict={logits_dict[:10]}")
 
                 for k in loss_items_total_train:
                     loss_items_total_train[k] += result[k]
@@ -241,7 +241,7 @@ class UnifyMLPDetector(object):
                         for t,label_dict in enumerate(batched_labels_dict):
                             if kk[0] in self.output_route:
                                 labels_mul_t.append(label_dict[kk])
-                        labels_dict_val_mul[k].append(labels_mul_t.to(self.args.device))
+                        labels_dict_val_mul[k].append(labels_mul_t)
                             
                     
                     # for t,label_dict in enumerate(batched_labels_dict):
@@ -258,6 +258,7 @@ class UnifyMLPDetector(object):
                     with torch.no_grad():
                         logits_dict = self.model(batched_graph, batched_khop_graph)
                         _, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
+                        print(f"[DEBUG AFTER VALIDATION]logits doict {logits_dict[:70]}")
                         result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
                         for k in loss_items_total_val:
                             loss_items_total_val[k] += result[k] # notice next block
@@ -319,7 +320,7 @@ class UnifyMLPDetector(object):
                             for t,label_dict in enumerate(batched_labels_dict):
                                 if kk[0] in self.output_route:
                                     labels_mul_t.append(label_dict[kk])
-                            labels_dict_test_mul[k].append(labels_mul_t.to(self.args.device))
+                            labels_dict_test_mul[k].append(labels_mul_t)
                         batched_khop_graph = [graph.to(self.args.device) for graph in batched_khop_graph]
                         
                         self.model.eval()
