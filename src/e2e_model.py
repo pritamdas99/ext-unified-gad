@@ -237,11 +237,10 @@ class UnifyMLPDetector(object):
                     
                     for k in batched_labels_dict[0]:
                         labels_mul_t=[]
-                        kk=NAME_MAP[k]
                         for t,label_dict in enumerate(batched_labels_dict):
-                            if kk[0] in self.output_route:
-                                labels_mul_t.append(label_dict[kk])
-                        labels_dict_val_mul[k].append(labels_mul_t)
+                            if k[0] in self.output_route:
+                                labels_mul_t.append(label_dict[k])
+                        labels_dict_val_mul[k[0]].append(labels_mul_t)
                             
                     
                     # for t,label_dict in enumerate(batched_labels_dict):
@@ -316,11 +315,10 @@ class UnifyMLPDetector(object):
                     
                         for k in batched_labels_dict[0]:
                             labels_mul_t=[]
-                            kk=NAME_MAP[k]
                             for t,label_dict in enumerate(batched_labels_dict):
-                                if kk[0] in self.output_route:
-                                    labels_mul_t.append(label_dict[kk])
-                            labels_dict_test_mul[k].append(labels_mul_t)
+                                if k[0] in self.output_route:
+                                    labels_mul_t.append(label_dict[k])
+                            labels_dict_test_mul[k[0]].append(labels_mul_t)
                         batched_khop_graph = [graph.to(self.args.device) for graph in batched_khop_graph]
                         
                         self.model.eval()
