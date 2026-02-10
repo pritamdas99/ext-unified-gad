@@ -37,6 +37,7 @@ class GCNTemporalFusion(nn.Module):
         for t, g in enumerate(graph_seq):
             h_t = self.gcn(g, g.ndata['feature'])
             print(f"[DEBUG GCNTemporalFusion] t={t}, GCN output h_t.shape={h_t.shape}")
+            print(f"whta the hell****** {h_t[:10]}**********")
             h_t = SubgraphPooling(h_t, mrq_graph[t])
             print(f"[DEBUG GCNTemporalFusion] t={t}, after SubgraphPooling h_t.shape={h_t.shape}")
             # BUG: self.out_dim is set to in_dim instead of out_dim — padding tensor may have wrong dim
