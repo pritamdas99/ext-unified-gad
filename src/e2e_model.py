@@ -240,10 +240,13 @@ class UnifyMLPDetector(object):
                         labels_mul_t=[]
                         for t,label_dict in enumerate(batched_labels_dict):
                             if k[0] in self.output_route:
-                                labels_mul_t.append(label_dict[k])
-                        labels_mul_t = torch.stack(labels_mul_t, dim=0)
-
-                        labels_dict_val_mul[k[0]].append(labels_mul_t)
+                                labels_mul_t.append(label_dict[k].tolist())
+                                
+                        if not labels_dict_val_mul[k[0]]:
+                            labels_dict_val_mul[k[0]] = torch.tensor(labels_mul_t)
+                        else:
+                            labels_mul_t = torch.tensor(labels_mul_t)
+                            labels_dict_val_mul[k[0]] = torch.cat([labels_dict_val_mul[k[0]],labels_mul_t], dim=1)
                         
                 
                             
@@ -274,7 +277,12 @@ class UnifyMLPDetector(object):
                             probs_mul_t=[]
                             for t, prob_t in enumerate(probs):
                                 probs_mul_t.append(prob_t[k])
-                            probs_dict_val_mul[k].append(probs_mul_t)
+                            if not probs_dict_val_mul[k[0]]:
+                                probs_dict_val_mul[k[0]] = torch.tensor(probs_mul_t)
+                            else:
+                                labels_mul_t = torch.tensor(probs_mul_t)
+                                probs_dict_val_mul[k[0]] = torch.cat([probs_dict_val_mul[k[0]],labels_mul_t], dim=1)
+                            
                     
                     del batched_data
                     del batched_graph
