@@ -298,7 +298,7 @@ class UnifyMLPDetector(object):
                         for k in probs[0]:
                             probs_mul_t=[]
                             for t, prob_t in enumerate(probs):
-                                probs_mul_t.append(prob_t[k])
+                                probs_mul_t.append(prob_t[k].tolist())
                             probs_mul_t = pad_to_rectangle(probs_mul_t)
                             if not probs_dict_val_mul[k[0]]:
                                 probs_dict_val_mul[k[0]] = torch.tensor(probs_mul_t)
