@@ -203,7 +203,7 @@ class UnifyMLPDetector(object):
             if np.isnan(probs).any():
                 probs = np.nan_to_num(probs, nan=0.0)
             score['MacroF1'] = get_best_f1(labels, probs)[0]
-            score['AUROC'] = rowwise_roc_auc(labels, probs)
+            score['AUROC'] = roc_auc_score(labels.T, probs.T)
             score['AUPRC'] = average_precision_score(labels, probs)
 
         return score
