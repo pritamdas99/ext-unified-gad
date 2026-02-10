@@ -6,6 +6,35 @@ from utils import *
 from predictor import *
 from Pareto_fn import pareto_fn
 
+import numpy as np
+
+def rowwise_roc_auc(y_true, y_pred):
+    """
+    Compute ROC AUC row-wise for 2D arrays (timestamps x labels),
+    safely skipping rows where only one class is present.
+    
+    Args:
+        y_true (array-like): Ground truth labels, shape (N, K)
+        y_pred (array-like): Predicted probabilities, shape (N, K)
+        
+    Returns:
+        mean_auc (float): Mean ROC AUC across valid rows
+        row_auroc (list of float): ROC AUC per row, np.nan for invalid rows
+    """
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    row_auroc = []
+    for i in range(y_true.shape[0]):
+        if len(np.unique(y_true[i])) < 2:
+            row_auroc.append(np.nan)  # skip rows with only one class
+        else:
+            row_auroc.append(roc_auc_score(y_true[i], y_pred[i]))
+    
+    mean_auc = np.nanmean(row_auroc)  # ignore np.nan rows when computing mean
+    return mean_auc, row_auroc
+
+
 # threshold adjusting for best macro f1
 def get_best_f1(labels, probs):
     best_f1, best_thre = 0, 0
@@ -174,7 +203,7 @@ class UnifyMLPDetector(object):
             if np.isnan(probs).any():
                 probs = np.nan_to_num(probs, nan=0.0)
             score['MacroF1'] = get_best_f1(labels, probs)[0]
-            score['AUROC'] = roc_auc_score(labels, probs)
+            score['AUROC'] = rowwise_roc_auc(labels, probs)
             score['AUPRC'] = average_precision_score(labels, probs)
 
         return score
@@ -183,6 +212,7 @@ class UnifyMLPDetector(object):
     def eval(self, labels, probs):
         result = {}
         for k in self.output_route:
+            print("************", labels[k].shape, probs[k].shape)
             result[k] = self._single_eval(labels[k], probs[k])
         return result
 
