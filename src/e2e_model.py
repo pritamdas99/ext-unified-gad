@@ -19,6 +19,25 @@ def get_best_f1(labels, probs):
             best_thre = thres
     return best_f1, best_thre
 
+def pad_to_rectangle(matrix, pad_value=0):
+    """
+    Pads rows of a 2D list to make all rows the same length.
+    
+    Args:
+        matrix (list of lists): 2D list with variable-length rows.
+        pad_value (int, float, optional): Value to pad with. Default is 0.
+    
+    Returns:
+        list of lists: Rectangular 2D list where all rows have the same length.
+    """
+    # Find the maximum row length
+    max_len = max(len(row) for row in matrix)
+    
+    # Pad each row to max_len
+    padded_matrix = [row + [pad_value]*(max_len - len(row)) for row in matrix]
+    
+    return padded_matrix
+
 LABEL_DICT_KEYS = {
     'n':"node_label",
     'e':'edge_label',
@@ -242,6 +261,8 @@ class UnifyMLPDetector(object):
                             if k[0] in self.output_route:
                                 labels_mul_t.append(label_dict[k].tolist())
                                 
+                        labels_mul_t = pad_to_rectangle(labels_mul_t)
+                                
                         if not labels_dict_val_mul[k[0]]:
                             labels_dict_val_mul[k[0]] = torch.tensor(labels_mul_t)
                         else:
@@ -277,6 +298,7 @@ class UnifyMLPDetector(object):
                             probs_mul_t=[]
                             for t, prob_t in enumerate(probs):
                                 probs_mul_t.append(prob_t[k])
+                            probs_mul_t = pad_to_rectangle(probs_mul_t)
                             if not probs_dict_val_mul[k[0]]:
                                 probs_dict_val_mul[k[0]] = torch.tensor(probs_mul_t)
                             else:
