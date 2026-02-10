@@ -240,6 +240,7 @@ class UnifyMLPDetector(object):
                         for t,label_dict in enumerate(batched_labels_dict):
                             if k[0] in self.output_route:
                                 labels_mul_t.append(label_dict[k])
+                        labels_mul_t = torch.tensor(labels_mul_t, dtype=torch.float64)
                         labels_dict_val_mul[k[0]].append(labels_mul_t.to(self.args.device))
                             
                     
