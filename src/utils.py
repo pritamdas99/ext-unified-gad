@@ -644,12 +644,12 @@ class Dataset:
                 # print("sampling training graph ", i)
                 seed = ROOT_SEED+1500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
                 # if i <=2:
                 #     print("sampled zeros ", sample_zeros[:10])
                 #     print("sampled ones ", sample_ones[:10])
-                k=2
+                k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
@@ -679,9 +679,9 @@ class Dataset:
             for i in tqdm(range(500)):
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                k=2
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
+                k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
@@ -705,9 +705,9 @@ class Dataset:
             for i in tqdm(range(500)):
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                k=2
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
+                k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
