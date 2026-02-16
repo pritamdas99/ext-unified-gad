@@ -18,7 +18,6 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from functools import partial
-from concurrent.futures import ProcessPoolExecutor
 
 from line_profiler import profile
 
@@ -328,9 +327,9 @@ def collate_with_sp(batch):
 
 
 def _compute_sp_for_graph(packed_args):
-    """Worker function for parallel SP matrix computation.
-    Must be at module level for ProcessPoolExecutor pickling.
+    """Worker function for SP matrix computation.
     Processes a single graph and returns its SP matrix graph.
+    Limited to first 500 nodes for performance.
     """
     graph, sp_method, agg_ft, full_name, khop, get_sp_adj_list_fn, select_topk_fn = packed_args
 
@@ -365,7 +364,11 @@ def _compute_sp_for_graph(packed_args):
             tmp_graph = tmp_graph.to_simple()
             tmp_graph = tmp_graph.remove_self_loop()
 
-        for central_node_id in graph.nodes():
+        # Limit to first 500 nodes for performance
+        num_nodes_to_process = min(500, graph.num_nodes())
+        nodes_to_process = graph.nodes()[:num_nodes_to_process]
+
+        for central_node_id in nodes_to_process:
             adj_list, weight_list = get_sp_adj_list_fn(
                 tmp_graph, central_node_id.item(), khop, select_topk_fn)
             sp_matrix_graph.add_edges(
@@ -529,62 +532,37 @@ class Dataset:
             self.sp_matrix_graph_test_list, _ = load_graphs(self.sp_matrix_graphs_test_filename)
         else:
             print("### util: graph list len: ", len(self.training_graph_sampled))
-
-            # Determine parallel workers (0 = auto-detect)
-            if num_workers <= 0:
-                num_workers = max(1, (os.cpu_count() or 2) - 1)
-            print(f"### util: using {num_workers} workers for SP matrix generation")
+            print("### util: using sequential processing (no parallel workers)")
 
             def _pack_args(graph_list):
-                """Pack arguments for the parallel worker function."""
+                """Pack arguments for the worker function."""
                 return [(g, self.sp_method, self.agg_ft, self.full_name, khop,
                          self.get_sp_adj_list, self.select_topk_fn) for g in graph_list]
 
             # =====================================================================
-            # --- Training SP matrices (100 graphs, parallel) ---
+            # --- Training SP matrices (sequential) ---
             # =====================================================================
             train_args = _pack_args(self.training_graph_sampled)
-            if num_workers > 1:
-                with ProcessPoolExecutor(max_workers=num_workers) as pool:
-                    self.sp_matrix_graph_train_list = list(tqdm(
-                        pool.map(_compute_sp_for_graph, train_args,
-                                 chunksize=max(1, len(train_args) // num_workers)),
-                        total=len(train_args), desc="Training SP"))
-            else:
-                self.sp_matrix_graph_train_list = [
-                    _compute_sp_for_graph(a) for a in tqdm(train_args, desc="Training SP")]
+            self.sp_matrix_graph_train_list = [
+                _compute_sp_for_graph(a) for a in tqdm(train_args, desc="Training SP")]
             save_graphs(self.sp_matrix_graphs_train_filename, self.sp_matrix_graph_train_list)
             print("### util: finished training sp graphs generation ")
 
             # =====================================================================
-            # --- Validation SP matrices (50 graphs, parallel) ---
+            # --- Validation SP matrices (sequential) ---
             # =====================================================================
             val_args = _pack_args(self.validation_graph_sampled)
-            if num_workers > 1:
-                with ProcessPoolExecutor(max_workers=num_workers) as pool:
-                    self.sp_matrix_graph_val_list = list(tqdm(
-                        pool.map(_compute_sp_for_graph, val_args,
-                                 chunksize=max(1, len(val_args) // num_workers)),
-                        total=len(val_args), desc="Validation SP"))
-            else:
-                self.sp_matrix_graph_val_list = [
-                    _compute_sp_for_graph(a) for a in tqdm(val_args, desc="Validation SP")]
+            self.sp_matrix_graph_val_list = [
+                _compute_sp_for_graph(a) for a in tqdm(val_args, desc="Validation SP")]
             save_graphs(self.sp_matrix_graphs_val_filename, self.sp_matrix_graph_val_list)
             print("### util: finished validation sp graphs generation ")
 
             # =====================================================================
-            # --- Testing SP matrices (50 graphs, parallel) ---
+            # --- Testing SP matrices (sequential) ---
             # =====================================================================
             test_args = _pack_args(self.testing_graph_sampled)
-            if num_workers > 1:
-                with ProcessPoolExecutor(max_workers=num_workers) as pool:
-                    self.sp_matrix_graph_test_list = list(tqdm(
-                        pool.map(_compute_sp_for_graph, test_args,
-                                 chunksize=max(1, len(test_args) // num_workers)),
-                        total=len(test_args), desc="Testing SP"))
-            else:
-                self.sp_matrix_graph_test_list = [
-                    _compute_sp_for_graph(a) for a in tqdm(test_args, desc="Testing SP")]
+            self.sp_matrix_graph_test_list = [
+                _compute_sp_for_graph(a) for a in tqdm(test_args, desc="Testing SP")]
             save_graphs(self.sp_matrix_graphs_test_filename, self.sp_matrix_graph_test_list)
             print("### util: finished testing sp graphs generation ")
 
@@ -640,7 +618,7 @@ class Dataset:
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
             # print("zero labeled ", zero_labeled[:50])
             # print("one labeled ", one_labeled[:50])
-            for i in range(500):
+            for i in tqdm(range(500), desc="Sampling training graphs"):
                 # print("sampling training graph ", i)
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
@@ -676,7 +654,7 @@ class Dataset:
 
             print("traing graph sampled num: ", len(self.training_graph_sampled))
 
-            for i in range(200):
+            for i in tqdm(range(200), desc="Sampling validation graphs"):
                 seed = ROOT_SEED+200*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
@@ -702,7 +680,7 @@ class Dataset:
 
             print("validation graph sampled num: ", len(self.validation_graph_sampled))
 
-            for i in range(200):
+            for i in tqdm(range(200), desc="Sampling testing graphs"):
                 seed = ROOT_SEED+200*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
