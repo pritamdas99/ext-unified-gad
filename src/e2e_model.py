@@ -181,6 +181,7 @@ class UnifyMLPDetector(object):
     def train(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr_ft, weight_decay=self.args.l2_ft)
         for epoch in tqdm( range(self.args.epoch_ft) ):
+            print(f"{epoch} running.........................")
             loss_items_total_train = {k:0 for k in self.output_route }
             total_loss_graph = 0
             total_loss_node = 0
