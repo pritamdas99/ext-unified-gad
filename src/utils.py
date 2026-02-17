@@ -618,9 +618,9 @@ class Dataset:
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
             # print("zero labeled ", zero_labeled[:50])
             # print("one labeled ", one_labeled[:50])
-            for i in tqdm(range(500), desc="Sampling training graphs"):
+            for i in tqdm(range(400), desc="Sampling training graphs"):
                 # print("sampling training graph ", i)
-                seed = ROOT_SEED+500*i
+                seed = ROOT_SEED+200*i
                 set_seed(seed)
                 sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
                 sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
