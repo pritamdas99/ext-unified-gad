@@ -29,7 +29,7 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     score_test = e2e_model.train()
 
     ED = time.time()
-    time_cost += ED - ST
+    time_cost = ED - ST
     
     
     model_result = {'dataset name': dataset_name,
@@ -72,6 +72,7 @@ def main():
         raise NotImplementedError
     
     # evaluate all parameters
+    results = pandas.DataFrame()  # Initialize results DataFrame
     for dataset_name in dataset_names:
         # parse dataset
         # dataset_name = DATASETS[dataset_id]
@@ -103,7 +104,7 @@ def main():
 
         for cross_mode in cross_modes:
             model_result = work(dataset, dataset_name, cross_mode, args.kernels, args)
-            results = pandas.concat([results, model_result])
+            results = pandas.concat([results, pandas.DataFrame([model_result])], ignore_index=True)
 
             # save result for each dataset-model-pair
             full_model_name = args.kernel + '-transformer'
