@@ -107,9 +107,9 @@ def main():
             results = pandas.concat([results, pandas.DataFrame([model_result])], ignore_index=True)
 
             # save result for each dataset-model-pair
-            full_model_name = args.kernel + '-transformer'
-            save_file_name = f"{args.tag}.{args.act_ft}.dataset_{dataset_name}.hop_{args.khop}.sp_type_{sp_type}.lr_ft_{args.lr_ft}.epochft_{args.epoch_ft}.wd_{args.l2}.crossmode_{cross_mode}.mlplayers_{args.stitch_mlp_layers}_{args.final_mlp_layers}.lossweights_{str(args.node_loss_weight)+'-'+str(args.edge_loss_weight)+'-'+str(args.graph_loss_weight)}"
-            save_results(results, save_file_name)
+            # full_model_name = args.kernel + '-transformer'
+            # save_file_name = f"{args.tag}.{args.act_ft}.dataset_{dataset_name}.hop_{args.khop}.sp_type_{sp_type}.lr_ft_{args.lr_ft}.epochft_{args.epoch_ft}.wd_{args.l2}.crossmode_{cross_mode}.mlplayers_{args.stitch_mlp_layers}_{args.final_mlp_layers}.lossweights_{str(args.node_loss_weight)+'-'+str(args.edge_loss_weight)+'-'+str(args.graph_loss_weight)}"
+            # save_results(results, save_file_name)
             print(results)
 
 if __name__ == "__main__":
