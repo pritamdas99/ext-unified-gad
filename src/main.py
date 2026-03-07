@@ -79,8 +79,13 @@ def main():
         print('190:================> Evaluating dataset: ', dataset_name)
 
         ### settings
-        # load dataset 
-        if dataset_name == 'uni-tsocial' \
+        # load dataset
+        if dataset_name in CSV_DATASETS:
+            csv_path = CSV_DATASETS[dataset_name]
+            g = load_csv_to_dgl(csv_path, dataset_type=dataset_name, feature_dim=16)
+            dataset = Dataset(dataset_name, prefix='../datasets/csv/',
+                              sp_type=sp_type, labels_have='ne', prebuilt_graph=g)
+        elif dataset_name == 'uni-tsocial' \
             or dataset_name == 'mnist/dgl/mnist0' \
             or dataset_name == 'mnist/dgl/mnist1' \
             or dataset_name == 'mutag/dgl/mutag0' \

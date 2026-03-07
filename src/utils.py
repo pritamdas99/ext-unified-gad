@@ -12,6 +12,7 @@ from dgl.nn.pytorch.glob import SumPooling, AvgPooling, MaxPooling
 from dgl.dataloading import GraphDataLoader
 from dgl import KHopGraph, save_graphs
 import dgl.function as fn
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -28,13 +29,21 @@ NAME_MAP = {
     'g': "Graph",
 }
 
-DATASETS = ['reddit', 'weibo', 'amazon', 'yelp', 'tfinance', 'elliptic', 'tolokers', 'questions', 'dgraphfin', 'tsocial', 'hetero/amazon', 'hetero/yelp', 
-            'uni-tsocial', 
-            'mnist/dgl/mnist0', 'mnist/dgl/mnist1', 
-            'mutag/dgl/mutag0', 
+DATASETS = ['reddit', 'weibo', 'amazon', 'yelp', 'tfinance', 'elliptic', 'tolokers', 'questions', 'dgraphfin', 'tsocial', 'hetero/amazon', 'hetero/yelp',
+            'uni-tsocial',
+            'mnist/dgl/mnist0', 'mnist/dgl/mnist1',
+            'mutag/dgl/mutag0',
             'bm/dgl/bm_mn_dgl', 'bm/dgl/bm_ms_dgl', 'bm/dgl/bm_mt_dgl',
-            'tfinace'
+            'tfinace',
+            # CSV datasets
+            'bitcoin-otc', 'bitcoin-alpha', 'reddit-hyperlinks',
             ]
+
+CSV_DATASETS = {
+    'bitcoin-otc': '../datasets/csv/soc-sign-bitcoinotc.csv',
+    'bitcoin-alpha': '../datasets/csv/soc-sign-bitcoinalpha.csv',
+    'reddit-hyperlinks': '../datasets/csv/soc-redditHyperlinks-body.tsv',
+}
 
 EPS = 1e-12 # for nan
 ROOT_SEED = 3407
@@ -381,14 +390,143 @@ def _compute_sp_for_graph(packed_args):
     return sp_matrix_graph
 
 
+def load_csv_to_dgl(csv_path, dataset_type='bitcoin-otc', feature_dim=16):
+    """
+    Load a CSV edge-list dataset and convert to a DGL graph with
+    'feature', 'node_label', and 'edge_label' fields.
+    """
+    if dataset_type in ('bitcoin-otc', 'bitcoin-alpha'):
+        df = pd.read_csv(csv_path, header=None, names=['src', 'dst', 'rating', 'time'])
+
+        all_nodes = pd.concat([df['src'], df['dst']]).unique()
+        node_map = {old: new for new, old in enumerate(sorted(all_nodes))}
+        df['src'] = df['src'].map(node_map)
+        df['dst'] = df['dst'].map(node_map)
+        num_nodes = len(all_nodes)
+
+        g = dgl.graph((df['src'].values, df['dst'].values))
+
+        edge_labels = (df['rating'] < 0).astype(int).values
+        g.edata['edge_label'] = torch.tensor(edge_labels, dtype=torch.long)
+
+        node_neg = torch.zeros(num_nodes)
+        node_total = torch.zeros(num_nodes)
+        for _, row in df.iterrows():
+            s, d, r = int(row['src']), int(row['dst']), row['rating']
+            node_total[s] += 1
+            node_total[d] += 1
+            if r < 0:
+                node_neg[s] += 1
+                node_neg[d] += 1
+        node_labels = ((node_neg / (node_total + 1e-12)) > 0.5).long()
+        g.ndata['node_label'] = node_labels
+
+        in_deg = g.in_degrees().float().unsqueeze(1)
+        out_deg = g.out_degrees().float().unsqueeze(1)
+
+        avg_rating_src = torch.zeros(num_nodes)
+        avg_rating_dst = torch.zeros(num_nodes)
+        for s, d, r in zip(df['src'], df['dst'], df['rating']):
+            avg_rating_src[s] += r
+            avg_rating_dst[d] += r
+        avg_rating_src = (avg_rating_src / (out_deg.squeeze() + 1e-12)).unsqueeze(1)
+        avg_rating_dst = (avg_rating_dst / (in_deg.squeeze() + 1e-12)).unsqueeze(1)
+
+        structural_feats = torch.cat([in_deg, out_deg, avg_rating_src, avg_rating_dst], dim=1)
+
+        if structural_feats.shape[1] < feature_dim:
+            torch.manual_seed(ROOT_SEED)
+            padding = torch.randn(num_nodes, feature_dim - structural_feats.shape[1]) * 0.01
+            structural_feats = torch.cat([structural_feats, padding], dim=1)
+
+        g.ndata['feature'] = structural_feats.float()
+
+    elif dataset_type == 'reddit-hyperlinks':
+        df = pd.read_csv(csv_path, sep='\t')
+
+        all_nodes = pd.concat([df['SOURCE_SUBREDDIT'], df['TARGET_SUBREDDIT']]).unique()
+        node_map = {old: new for new, old in enumerate(sorted(all_nodes))}
+        df['src'] = df['SOURCE_SUBREDDIT'].map(node_map)
+        df['dst'] = df['TARGET_SUBREDDIT'].map(node_map)
+        num_nodes = len(all_nodes)
+
+        g = dgl.graph((df['src'].values, df['dst'].values))
+
+        edge_labels = (df['LABEL'] == -1).astype(int).values
+        g.edata['edge_label'] = torch.tensor(edge_labels, dtype=torch.long)
+
+        node_neg = torch.zeros(num_nodes)
+        node_total = torch.zeros(num_nodes)
+        for _, row in df.iterrows():
+            s, d, lbl = int(row['src']), int(row['dst']), row['LABEL']
+            node_total[s] += 1
+            node_total[d] += 1
+            if lbl == -1:
+                node_neg[s] += 1
+                node_neg[d] += 1
+        node_labels = ((node_neg / (node_total + 1e-12)) > 0.5).long()
+        g.ndata['node_label'] = node_labels
+
+        in_deg = g.in_degrees().float().unsqueeze(1)
+        out_deg = g.out_degrees().float().unsqueeze(1)
+        structural_feats = torch.cat([in_deg, out_deg], dim=1)
+        if structural_feats.shape[1] < feature_dim:
+            torch.manual_seed(ROOT_SEED)
+            padding = torch.randn(num_nodes, feature_dim - structural_feats.shape[1]) * 0.01
+            structural_feats = torch.cat([structural_feats, padding], dim=1)
+        g.ndata['feature'] = structural_feats.float()
+
+    else:
+        raise ValueError(f"Unknown CSV dataset type: {dataset_type}")
+
+    print(f"Loaded CSV dataset '{dataset_type}': {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"  Node anomaly rate: {g.ndata['node_label'].float().mean():.4f}")
+    print(f"  Edge anomaly rate: {g.edata['edge_label'].float().mean():.4f}")
+    print(f"  Feature dim: {g.ndata['feature'].shape[1]}")
+
+    return g
+
+
 class Dataset:
-    def __init__(self, name='tfinance', prefix='../datasets/', labels_have="ng", sp_type='star+norm', debugnum = -1):
+    def __init__(self, name='tfinance', prefix='../datasets/', labels_have="ng", sp_type='star+norm', debugnum=-1, prebuilt_graph=None):
         self.full_name = prefix + name
         ### avoid repeat calcs
         self.prepare_dataset_done = False
         self.make_sp_matrix_graph_list_done = False
 
-        if "unified" not in prefix and "edge_labels" not in prefix:
+        if prebuilt_graph is not None:
+            print("Using prebuilt graph for", name)
+            self.labels_have = labels_have
+            self.name = name
+            self.graph_list = [prebuilt_graph]
+            self.in_dim = prebuilt_graph.ndata['feature'].shape[1]
+            self.sp_type = sp_type
+            self.sp_method, self.agg_ft = sp_type.split('+')
+
+            if self.sp_method == 'star':
+                self.get_sp_adj_list = get_star_topk_nbs
+                if self.agg_ft == 'norm':
+                    self.select_topk_fn = select_topk_star_normft
+                elif self.agg_ft == "union":
+                    self.select_topk_fn = select_topk_star_unionft
+                else:
+                    raise NotImplementedError
+            elif self.sp_method == 'convtree':
+                if self.agg_ft == 'norm':
+                    self.get_sp_adj_list = get_convtree_topk_nbs_norm
+                    self.select_topk_fn = None
+                else:
+                    raise NotImplementedError
+            elif self.sp_method == 'khop':
+                self.get_sp_adj_list = select_all_khop
+                self.select_topk_fn = None
+            elif self.sp_method == 'rand':
+                self.get_sp_adj_list = select_rand_khop
+                self.select_topk_fn = None
+            else:
+                raise NotImplementedError
+
+        elif "unified" not in prefix and "edge_labels" not in prefix:
             graph = load_graphs(prefix + name)[0][0]
             self.name = name
             self.graph = graph
