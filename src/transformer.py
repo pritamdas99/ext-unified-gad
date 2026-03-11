@@ -70,7 +70,7 @@ class Transformer(nn.Module):
         T = GNN_output.shape[0]
         causal_mask = torch.triu(torch.full((T, T), float('-inf'), device=GNN_output.device), diagonal=1)
 
-        transformer_output = self.transformer_encoder(GNN_output, src_mask=causal_mask, src_key_padding_mask=mask_kp)
+        transformer_output = self.transformer_encoder(GNN_output, src_mask=causal_mask)
         # zero out padded positions using original mask shape (T, total_nodes)
         transformer_output[mask.bool()] = 0
 
