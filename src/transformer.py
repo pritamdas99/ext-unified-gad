@@ -66,7 +66,11 @@ class Transformer(nn.Module):
         # key_padding_mask requires shape (batch=total_nodes, seq=T), so transpose mask
         mask_kp = mask.T.bool()
 
-        transformer_output = self.transformer_encoder(GNN_output, src_key_padding_mask=mask_kp)
+        # causal mask: shape (T, T), upper triangle = -inf so position i cannot attend to j > i
+        T = GNN_output.shape[0]
+        causal_mask = torch.triu(torch.full((T, T), float('-inf'), device=GNN_output.device), diagonal=1)
+
+        transformer_output = self.transformer_encoder(GNN_output, src_mask=causal_mask, src_key_padding_mask=mask_kp)
         # zero out padded positions using original mask shape (T, total_nodes)
         transformer_output[mask.bool()] = 0
 
