@@ -452,13 +452,14 @@ def load_csv_to_dgl(csv_path, dataset_type='bitcoin-otc', feature_dim=16):
 
         g = dgl.graph((df['src'].values, df['dst'].values))
 
-        edge_labels = (df['LABEL'] == -1).astype(int).values
+        label_col = 'LINK_SENTIMENT' if 'LINK_SENTIMENT' in df.columns else 'LABEL'
+        edge_labels = (df[label_col] == -1).astype(int).values
         g.edata['edge_label'] = torch.tensor(edge_labels, dtype=torch.long)
 
         node_neg = torch.zeros(num_nodes)
         node_total = torch.zeros(num_nodes)
         for _, row in df.iterrows():
-            s, d, lbl = int(row['src']), int(row['dst']), row['LABEL']
+            s, d, lbl = int(row['src']), int(row['dst']), row[label_col]
             node_total[s] += 1
             node_total[d] += 1
             if lbl == -1:
