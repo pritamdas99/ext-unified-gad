@@ -754,8 +754,8 @@ class Dataset:
             all_node_ids = list(range(num_nodes))
             zero_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 0]
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
-            # print("zero labeled ", zero_labeled[:50])
-            # print("one labeled ", one_labeled[:50])
+            print("zero labeled ", len(zero_labeled), zero_labeled[:50])
+            print("one labeled ", len(one_labeled), one_labeled[:50])
             for i in tqdm(range(1000), desc="Sampling training graphs"):
                 # print("sampling training graph ", i)
                 seed = ROOT_SEED+1000*i
