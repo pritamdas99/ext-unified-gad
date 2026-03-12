@@ -760,8 +760,8 @@ class Dataset:
                 # print("sampling training graph ", i)
                 seed = ROOT_SEED+1000*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(100, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(100, len(one_labeled)))
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
                 # if i <=2:
                 #     print("sampled zeros ", sample_zeros[:10])
                 #     print("sampled ones ", sample_ones[:10])
@@ -795,8 +795,8 @@ class Dataset:
             for i in tqdm(range(500), desc="Sampling validation graphs"):
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(100, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(100, len(one_labeled)))
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
                 k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
@@ -821,8 +821,8 @@ class Dataset:
             for i in tqdm(range(500), desc="Sampling testing graphs"):
                 seed = ROOT_SEED+500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(100, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(100, len(one_labeled)))
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
                 k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
