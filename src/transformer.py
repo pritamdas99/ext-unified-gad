@@ -8,10 +8,10 @@ class CustomTransformerEncoder(nn.Module):
         self.layers = nn.ModuleList([encoder_layer for _ in range(num_layers)])
         self.num_layers = num_layers
 
-    def forward(self, src, raw_src, src_mask=None, src_key_padding_mask=None):
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
         output = src
         for layer in self.layers:
-            output = layer(output, raw_src, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+            output = layer(output, src_mask=src_mask, src_key_padding_mask=src_key_padding_mask)
         return output
 
 class CustomTransformerEncoderLayer(nn.Module):
@@ -59,14 +59,19 @@ class Transformer(nn.Module):
         # self.to(device)
 
     def forward(self, GNN_output, mask):
-        GNN_output = GNN_output.transpose(0, 1)
-        raw_input = raw_input.transpose(0, 1)
+        # GNN_output shape: (T, total_nodes, D)
+        # No transpose — attend over temporal dim T (seq=T, batch=total_nodes)
+        # instead of over nodes which causes OOM
         GNN_output = GNN_output.float()
-        raw_input = raw_input.float()
-        mask = mask.bool()
+        # key_padding_mask requires shape (batch=total_nodes, seq=T), so transpose mask
+        mask_kp = mask.T.bool()
 
-        transformer_output = self.transformer_encoder(GNN_output, src_key_padding_mask=mask)
-        transformer_output = transformer_output.transpose(0, 1)
-        transformer_output[mask] = 0
+        # causal mask: shape (T, T), upper triangle = -inf so position i cannot attend to j > i
+        T = GNN_output.shape[0]
+        causal_mask = torch.triu(torch.full((T, T), float('-inf'), device=GNN_output.device), diagonal=1)
+
+        transformer_output = self.transformer_encoder(GNN_output, src_mask=causal_mask)
+        # zero out padded positions using original mask shape (T, total_nodes)
+        transformer_output[mask.bool()] = 0
 
         return transformer_output

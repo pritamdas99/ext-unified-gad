@@ -12,6 +12,7 @@ from dgl.nn.pytorch.glob import SumPooling, AvgPooling, MaxPooling
 from dgl.dataloading import GraphDataLoader
 from dgl import KHopGraph, save_graphs
 import dgl.function as fn
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -28,13 +29,21 @@ NAME_MAP = {
     'g': "Graph",
 }
 
-DATASETS = ['reddit', 'weibo', 'amazon', 'yelp', 'tfinance', 'elliptic', 'tolokers', 'questions', 'dgraphfin', 'tsocial', 'hetero/amazon', 'hetero/yelp', 
-            'uni-tsocial', 
-            'mnist/dgl/mnist0', 'mnist/dgl/mnist1', 
-            'mutag/dgl/mutag0', 
+DATASETS = ['reddit', 'weibo', 'amazon', 'yelp', 'tfinance', 'elliptic', 'tolokers', 'questions', 'dgraphfin', 'tsocial', 'hetero/amazon', 'hetero/yelp',
+            'uni-tsocial',
+            'mnist/dgl/mnist0', 'mnist/dgl/mnist1',
+            'mutag/dgl/mutag0',
             'bm/dgl/bm_mn_dgl', 'bm/dgl/bm_ms_dgl', 'bm/dgl/bm_mt_dgl',
-            'tfinace'
+            'tfinace',
+            # CSV datasets
+            'bitcoin-otc', 'bitcoin-alpha', 'reddit-hyperlinks',
             ]
+
+CSV_DATASETS = {
+    'bitcoin-otc': '../datasets/csv/soc-sign-bitcoinotc.csv',
+    'bitcoin-alpha': '../datasets/csv/soc-sign-bitcoinalpha.csv',
+    'reddit-hyperlinks': '../datasets/csv/soc-redditHyperlinks-body.tsv',
+}
 
 EPS = 1e-12 # for nan
 ROOT_SEED = 3407
@@ -58,6 +67,8 @@ def obtain_act(name=None):
     """
     Return activation function module
     """
+    if name is not None:
+        name = name.lower()
     if name == 'relu':
         act = nn.ReLU(inplace=True)
     elif name == "gelu":
@@ -317,21 +328,206 @@ def collate_with_sp(batch):
 
     return {
         'graphs': graphs,
-        'labels_dicts': labels_dicts,
+        'labels_dict': labels_dicts,
         'nodes_list': nodes_list,
         'edges_list': edges_list,
         'sp_matrices': sp_matrices
     }
 
 
+def _compute_sp_for_graph(packed_args):
+    """Worker function for SP matrix computation.
+    Processes a single graph and returns its SP matrix graph.
+    Limited to first 500 nodes for performance.
+    """
+    graph, sp_method, agg_ft, full_name, khop, get_sp_adj_list_fn, select_topk_fn = packed_args
+
+    with graph.local_scope():
+        if agg_ft == 'norm':
+            if full_name.endswith("mutag0"):
+                graph.ndata['feature_normed'] = graph.ndata['feature'].argmax(dim=1)
+            else:
+                graph.ndata['feature_normed'] = graph.ndata['feature']
+                graph.ndata['feature_normed'] -= graph.ndata['feature_normed'].min(0, keepdim=True)[0]
+                graph.ndata['feature_normed'] /= graph.ndata['feature_normed'].max(0, keepdim=True)[0] + EPS
+                graph.ndata['feature_normed'] = torch.norm(graph.ndata['feature_normed'], dim=1)
+
+        if khop == 0:
+            return dgl.graph(([], []))
+
+        sp_matrix_graph = dgl.graph(([], []))
+        sp_matrix_graph.add_nodes(graph.num_nodes())
+
+        if sp_method == 'star':
+            assert khop == 1
+            transform = KHopGraph(khop)
+            tmp_graph = transform(graph)
+            tmp_graph = tmp_graph.to_simple()
+            tmp_graph = tmp_graph.remove_self_loop()
+        elif sp_method == 'convtree':
+            assert khop == 2
+            tmp_graph = graph
+        elif sp_method == 'khop' or sp_method == 'rand':
+            transform = KHopGraph(khop)
+            tmp_graph = transform(graph)
+            tmp_graph = tmp_graph.to_simple()
+            tmp_graph = tmp_graph.remove_self_loop()
+
+        # Limit to first 500 nodes for performance
+        num_nodes_to_process = min(500, graph.num_nodes())
+        nodes_to_process = graph.nodes()[:num_nodes_to_process]
+
+        for central_node_id in nodes_to_process:
+            adj_list, weight_list = get_sp_adj_list_fn(
+                tmp_graph, central_node_id.item(), khop, select_topk_fn)
+            sp_matrix_graph.add_edges(
+                adj_list, central_node_id.long(),
+                {'pw': torch.tensor(weight_list)})
+
+        if agg_ft == 'norm':
+            graph.ndata.pop('feature_normed')
+
+    return sp_matrix_graph
+
+
+def load_csv_to_dgl(csv_path, dataset_type='bitcoin-otc', feature_dim=16):
+    """
+    Load a CSV edge-list dataset and convert to a DGL graph with
+    'feature', 'node_label', and 'edge_label' fields.
+    """
+    if dataset_type in ('bitcoin-otc', 'bitcoin-alpha'):
+        df = pd.read_csv(csv_path, header=None, names=['src', 'dst', 'rating', 'time'])
+
+        all_nodes = pd.concat([df['src'], df['dst']]).unique()
+        node_map = {old: new for new, old in enumerate(sorted(all_nodes))}
+        df['src'] = df['src'].map(node_map)
+        df['dst'] = df['dst'].map(node_map)
+        num_nodes = len(all_nodes)
+
+        g = dgl.graph((df['src'].values, df['dst'].values))
+
+        edge_labels = (df['rating'] < 0).astype(int).values
+        g.edata['edge_label'] = torch.tensor(edge_labels, dtype=torch.long)
+
+        node_neg = torch.zeros(num_nodes)
+        node_total = torch.zeros(num_nodes)
+        for _, row in df.iterrows():
+            s, d, r = int(row['src']), int(row['dst']), row['rating']
+            node_total[s] += 1
+            node_total[d] += 1
+            if r < 0:
+                node_neg[s] += 1
+                node_neg[d] += 1
+        node_labels = ((node_neg / (node_total + 1e-12)) > 0.5).long()
+        g.ndata['node_label'] = node_labels
+
+        in_deg = g.in_degrees().float().unsqueeze(1)
+        out_deg = g.out_degrees().float().unsqueeze(1)
+
+        avg_rating_src = torch.zeros(num_nodes)
+        avg_rating_dst = torch.zeros(num_nodes)
+        for s, d, r in zip(df['src'], df['dst'], df['rating']):
+            avg_rating_src[s] += r
+            avg_rating_dst[d] += r
+        avg_rating_src = (avg_rating_src / (out_deg.squeeze() + 1e-12)).unsqueeze(1)
+        avg_rating_dst = (avg_rating_dst / (in_deg.squeeze() + 1e-12)).unsqueeze(1)
+
+        structural_feats = torch.cat([in_deg, out_deg, avg_rating_src, avg_rating_dst], dim=1)
+
+        if structural_feats.shape[1] < feature_dim:
+            torch.manual_seed(ROOT_SEED)
+            padding = torch.randn(num_nodes, feature_dim - structural_feats.shape[1]) * 0.01
+            structural_feats = torch.cat([structural_feats, padding], dim=1)
+
+        g.ndata['feature'] = structural_feats.float()
+
+    elif dataset_type == 'reddit-hyperlinks':
+        df = pd.read_csv(csv_path, sep='\t')
+
+        all_nodes = pd.concat([df['SOURCE_SUBREDDIT'], df['TARGET_SUBREDDIT']]).unique()
+        node_map = {old: new for new, old in enumerate(sorted(all_nodes))}
+        df['src'] = df['SOURCE_SUBREDDIT'].map(node_map)
+        df['dst'] = df['TARGET_SUBREDDIT'].map(node_map)
+        num_nodes = len(all_nodes)
+
+        g = dgl.graph((df['src'].values, df['dst'].values))
+
+        label_col = 'LINK_SENTIMENT' if 'LINK_SENTIMENT' in df.columns else 'LABEL'
+        edge_labels = (df[label_col] == -1).astype(int).values
+        g.edata['edge_label'] = torch.tensor(edge_labels, dtype=torch.long)
+
+        node_neg = torch.zeros(num_nodes)
+        node_total = torch.zeros(num_nodes)
+        for _, row in df.iterrows():
+            s, d, lbl = int(row['src']), int(row['dst']), row[label_col]
+            node_total[s] += 1
+            node_total[d] += 1
+            if lbl == -1:
+                node_neg[s] += 1
+                node_neg[d] += 1
+        node_labels = ((node_neg / (node_total + 1e-12)) > 0.5).long()
+        g.ndata['node_label'] = node_labels
+
+        in_deg = g.in_degrees().float().unsqueeze(1)
+        out_deg = g.out_degrees().float().unsqueeze(1)
+        structural_feats = torch.cat([in_deg, out_deg], dim=1)
+        if structural_feats.shape[1] < feature_dim:
+            torch.manual_seed(ROOT_SEED)
+            padding = torch.randn(num_nodes, feature_dim - structural_feats.shape[1]) * 0.01
+            structural_feats = torch.cat([structural_feats, padding], dim=1)
+        g.ndata['feature'] = structural_feats.float()
+
+    else:
+        raise ValueError(f"Unknown CSV dataset type: {dataset_type}")
+
+    print(f"Loaded CSV dataset '{dataset_type}': {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"  Node anomaly rate: {g.ndata['node_label'].float().mean():.4f}")
+    print(f"  Edge anomaly rate: {g.edata['edge_label'].float().mean():.4f}")
+    print(f"  Feature dim: {g.ndata['feature'].shape[1]}")
+
+    return g
+
+
 class Dataset:
-    def __init__(self, name='tfinance', prefix='../datasets/', labels_have="ng", sp_type='star+norm', debugnum = -1):
+    def __init__(self, name='tfinance', prefix='../datasets/', labels_have="ng", sp_type='star+norm', debugnum=-1, prebuilt_graph=None):
         self.full_name = prefix + name
         ### avoid repeat calcs
         self.prepare_dataset_done = False
         self.make_sp_matrix_graph_list_done = False
 
-        if "unified" not in prefix and "edge_labels" not in prefix:
+        if prebuilt_graph is not None:
+            print("Using prebuilt graph for", name)
+            self.labels_have = labels_have
+            self.name = name
+            self.graph_list = [prebuilt_graph]
+            self.in_dim = prebuilt_graph.ndata['feature'].shape[1]
+            self.sp_type = sp_type
+            self.sp_method, self.agg_ft = sp_type.split('+')
+
+            if self.sp_method == 'star':
+                self.get_sp_adj_list = get_star_topk_nbs
+                if self.agg_ft == 'norm':
+                    self.select_topk_fn = select_topk_star_normft
+                elif self.agg_ft == "union":
+                    self.select_topk_fn = select_topk_star_unionft
+                else:
+                    raise NotImplementedError
+            elif self.sp_method == 'convtree':
+                if self.agg_ft == 'norm':
+                    self.get_sp_adj_list = get_convtree_topk_nbs_norm
+                    self.select_topk_fn = None
+                else:
+                    raise NotImplementedError
+            elif self.sp_method == 'khop':
+                self.get_sp_adj_list = select_all_khop
+                self.select_topk_fn = None
+            elif self.sp_method == 'rand':
+                self.get_sp_adj_list = select_rand_khop
+                self.select_topk_fn = None
+            else:
+                raise NotImplementedError
+
+        elif "unified" not in prefix and "edge_labels" not in prefix:
             graph = load_graphs(prefix + name)[0][0]
             self.name = name
             self.graph = graph
@@ -461,7 +657,7 @@ class Dataset:
 
 
 
-    def make_sp_matrix_graph_list(self, khop=1, sp_type='star+union', load_kg = False):
+    def make_sp_matrix_graph_list(self, khop=1, sp_type='star+union', load_kg = False, num_workers=0):
         self.sp_matrix_graph_train_list = []
         self.sp_matrix_graph_val_list = []
         self.sp_matrix_graph_test_list = []
@@ -475,157 +671,37 @@ class Dataset:
             self.sp_matrix_graph_test_list, _ = load_graphs(self.sp_matrix_graphs_test_filename)
         else:
             print("### util: graph list len: ", len(self.training_graph_sampled))
-            j=1
-            for idx,graph in enumerate(tqdm(self.training_graph_sampled)):
-                with graph.local_scope():
-                    if self.agg_ft == 'norm':
-                        if self.full_name.endswith("mutag0"):
-                            graph.ndata['feature_normed'] =  graph.ndata['feature'].argmax(dim=1)
-                        else:
-                            graph.ndata['feature_normed'] =  graph.ndata['feature']
-                            # norm it
-                            graph.ndata['feature_normed'] -= graph.ndata['feature_normed'].min(0, keepdim=True)[0] # take min value per column
-                            graph.ndata['feature_normed'] /= graph.ndata['feature_normed'].max(0, keepdim=True)[0] + EPS # N by F
-                            graph.ndata['feature_normed'] = torch.norm(graph.ndata['feature_normed'], dim=1) # L2 Norm per node dim: N by 1
-                    if khop !=0 :
-                        sp_matrix_graph = dgl.graph(([], []))
-                        sp_matrix_graph.add_nodes(graph.num_nodes()) # keep the node num same
-                        if self.sp_method == 'star':
-                            assert khop == 1
-                            transform = KHopGraph(khop)
-                            if j <= 2:
-                                print("### sp func: what is transform: ",transform)
-                            tmp_graph = transform(graph)
-                            tmp_graph = tmp_graph.to_simple()
-                            tmp_graph = tmp_graph.remove_self_loop()
-                            if j <= 2:
-                                print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
-                            j+=1
-                        elif self.sp_method == 'convtree':
-                            assert khop == 2
-                            # we directly use the big graph
-                            tmp_graph= graph
-                        elif self.sp_method == 'khop' or self.sp_method == 'rand':
-                            transform = KHopGraph(khop)
-                            tmp_graph = transform(graph)
-                            tmp_graph = tmp_graph.to_simple()
-                            tmp_graph = tmp_graph.remove_self_loop()
-                        i=0
-                        for central_node_id in graph.nodes():
-                            if i <= 2:
-                                print("### sp func: central_node_id ", central_node_id, central_node_id.item())
-                            adj_list, weight_list = self.get_sp_adj_list(tmp_graph, central_node_id.item(), khop, self.select_topk_fn)
-                            if i <= 2:
-                                print("### sp func: adj_list ", adj_list)
-                            i+=1
-                            sp_matrix_graph.add_edges(adj_list, central_node_id.long(), {'pw': torch.tensor(weight_list) }) # adj_list->node_id, edata['pw'] = weights
-                        
-                        self.sp_matrix_graph_train_list.append(sp_matrix_graph)
-                    else:
-                        self.sp_matrix_graph_train_list.append(dgl.graph(([], []))) # make a empty graph
-                    if self.agg_ft == 'norm':
-                        graph.ndata.pop('feature_normed') # remove normed feature
-    
+            print("### util: using sequential processing (no parallel workers)")
+
+            def _pack_args(graph_list):
+                """Pack arguments for the worker function."""
+                return [(g, self.sp_method, self.agg_ft, self.full_name, khop,
+                         self.get_sp_adj_list, self.select_topk_fn) for g in graph_list]
+
+            # =====================================================================
+            # --- Training SP matrices (sequential) ---
+            # =====================================================================
+            train_args = _pack_args(self.training_graph_sampled)
+            self.sp_matrix_graph_train_list = [
+                _compute_sp_for_graph(a) for a in tqdm(train_args, desc="Training SP")]
             save_graphs(self.sp_matrix_graphs_train_filename, self.sp_matrix_graph_train_list)
             print("### util: finished training sp graphs generation ")
 
-        if load_kg and os.path.exists(self.sp_matrix_graphs_val_filename):
-            self.sp_matrix_graph_list, _ = load_graphs(self.sp_matrix_graphs_val_filename)
-        else:
-            # print("### util: graph list len: ", len(self.validation_graph_sampled))
-            for idx,graph in enumerate(tqdm(self.validation_graph_sampled)):
-                with graph.local_scope():
-                    if self.agg_ft == 'norm':
-                        if self.full_name.endswith("mutag0"):
-                            graph.ndata['feature_normed'] =  graph.ndata['feature'].argmax(dim=1)
-                        else:
-                            graph.ndata['feature_normed'] =  graph.ndata['feature']
-                            # norm it
-                            graph.ndata['feature_normed'] -= graph.ndata['feature_normed'].min(0, keepdim=True)[0] # take min value per column
-                            graph.ndata['feature_normed'] /= graph.ndata['feature_normed'].max(0, keepdim=True)[0] + EPS # N by F
-                            graph.ndata['feature_normed'] = torch.norm(graph.ndata['feature_normed'], dim=1) # L2 Norm per node dim: N by 1
-                    if khop !=0 :
-                        sp_matrix_graph = dgl.graph(([], []))
-                        sp_matrix_graph.add_nodes(graph.num_nodes()) # keep the node num same
-                        if self.sp_method == 'star':
-                            assert khop == 1
-                            transform = KHopGraph(khop)
-                            # print("### sp func: what is transform: ",transform)
-                            tmp_graph = transform(graph)
-                            tmp_graph = tmp_graph.to_simple()
-                            tmp_graph = tmp_graph.remove_self_loop()
-                            # print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
-                        elif self.sp_method == 'convtree':
-                            assert khop == 2
-                            # we directly use the big graph
-                            tmp_graph= graph
-                        elif self.sp_method == 'khop' or self.sp_method == 'rand':
-                            transform = KHopGraph(khop)
-                            tmp_graph = transform(graph)
-                            tmp_graph = tmp_graph.to_simple()
-                            tmp_graph = tmp_graph.remove_self_loop()
-                        for central_node_id in graph.nodes():
-                            # print("### sp func: central_node_id ", central_node_id, central_node_id.item())
-                            adj_list, weight_list = self.get_sp_adj_list(tmp_graph, central_node_id.item(), khop, self.select_topk_fn)
-                            # print("### sp func: adj_list ", adj_list)
-                            sp_matrix_graph.add_edges(adj_list, central_node_id.long(), {'pw': torch.tensor(weight_list) }) # adj_list->node_id, edata['pw'] = weights
-                        
-                        self.sp_matrix_graph_val_list.append(sp_matrix_graph)
-                    else:
-                        self.sp_matrix_graph_val_list.append(dgl.graph(([], []))) # make a empty graph
-                    if self.agg_ft == 'norm':
-                        graph.ndata.pop('feature_normed') # remove normed feature
-    
+            # =====================================================================
+            # --- Validation SP matrices (sequential) ---
+            # =====================================================================
+            val_args = _pack_args(self.validation_graph_sampled)
+            self.sp_matrix_graph_val_list = [
+                _compute_sp_for_graph(a) for a in tqdm(val_args, desc="Validation SP")]
             save_graphs(self.sp_matrix_graphs_val_filename, self.sp_matrix_graph_val_list)
             print("### util: finished validation sp graphs generation ")
 
-        if load_kg and os.path.exists(self.sp_matrix_graphs_test_filename):
-            self.sp_matrix_graph_list, _ = load_graphs(self.sp_matrix_graphs_test_filename)
-        else:
-            print("### util: graph list len: ", len(self.testing_graph_sampled))
-            for idx,graph in enumerate(tqdm(self.testing_graph_sampled)):
-                with graph.local_scope():
-                    if self.agg_ft == 'norm':
-                        if self.full_name.endswith("mutag0"):
-                            graph.ndata['feature_normed'] =  graph.ndata['feature'].argmax(dim=1)
-                        else:
-                            graph.ndata['feature_normed'] =  graph.ndata['feature']
-                            # norm it
-                            graph.ndata['feature_normed'] -= graph.ndata['feature_normed'].min(0, keepdim=True)[0] # take min value per column
-                            graph.ndata['feature_normed'] /= graph.ndata['feature_normed'].max(0, keepdim=True)[0] + EPS # N by F
-                            graph.ndata['feature_normed'] = torch.norm(graph.ndata['feature_normed'], dim=1) # L2 Norm per node dim: N by 1
-                    if khop !=0 :
-                        sp_matrix_graph = dgl.graph(([], []))
-                        sp_matrix_graph.add_nodes(graph.num_nodes()) # keep the node num same
-                        if self.sp_method == 'star':
-                            assert khop == 1
-                            transform = KHopGraph(khop)
-                            print("### sp func: what is transform: ",transform)
-                            tmp_graph = transform(graph)
-                            tmp_graph = tmp_graph.to_simple()
-                            tmp_graph = tmp_graph.remove_self_loop()
-                            print("### spfunc: graph after k-hop transform edges:", tmp_graph, "edges", tmp_graph.edges())
-                        elif self.sp_method == 'convtree':
-                            assert khop == 2
-                            # we directly use the big graph
-                            tmp_graph= graph
-                        elif self.sp_method == 'khop' or self.sp_method == 'rand':
-                            transform = KHopGraph(khop)
-                            tmp_graph = transform(graph)
-                            tmp_graph = tmp_graph.to_simple()
-                            tmp_graph = tmp_graph.remove_self_loop()
-                        for central_node_id in graph.nodes():
-                            print("### sp func: central_node_id ", central_node_id, central_node_id.item(), len(graph.nodes()))
-                            adj_list, weight_list = self.get_sp_adj_list(tmp_graph, central_node_id.item(), khop, self.select_topk_fn)
-                            print("### sp func: adj_list ", adj_list)
-                            sp_matrix_graph.add_edges(adj_list, central_node_id.long(), {'pw': torch.tensor(weight_list) }) # adj_list->node_id, edata['pw'] = weights
-                        
-                        self.sp_matrix_graph_test_list.append(sp_matrix_graph)
-                    else:
-                        self.sp_matrix_graph_test_list.append(dgl.graph(([], []))) # make a empty graph
-                    if self.agg_ft == 'norm':
-                        graph.ndata.pop('feature_normed') # remove normed feature
-    
+            # =====================================================================
+            # --- Testing SP matrices (sequential) ---
+            # =====================================================================
+            test_args = _pack_args(self.testing_graph_sampled)
+            self.sp_matrix_graph_test_list = [
+                _compute_sp_for_graph(a) for a in tqdm(test_args, desc="Testing SP")]
             save_graphs(self.sp_matrix_graphs_test_filename, self.sp_matrix_graph_test_list)
             print("### util: finished testing sp graphs generation ")
 
@@ -645,7 +721,7 @@ class Dataset:
     def prepare_dataset(self):
         if self.prepare_dataset_done:
             return
-        
+
         self.node_label = []
         self.edge_label = []
 
@@ -662,7 +738,7 @@ class Dataset:
         self.testing_graph_edges = []
 
         self.node_test_masks = []
-        
+
         # some preprocess
         for idx,graph in enumerate(tqdm(self.graph_list)):
             graph.ndata['feature'] = graph.ndata['feature'].float()
@@ -679,18 +755,18 @@ class Dataset:
             all_node_ids = list(range(num_nodes))
             zero_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 0]
             one_labeled = [n for n, l in zip(all_node_ids, node_labels) if l == 1]
-            print("zero labeled ", zero_labeled[:50])
-            print("one labeled ", one_labeled[:50])
-            for i in range(100):
-                print("sampling training graph ", i)
-                seed = ROOT_SEED+100*i
+            print("zero labeled ", len(zero_labeled), zero_labeled[:50])
+            print("one labeled ", len(one_labeled), one_labeled[:50])
+            for i in tqdm(range(1000), desc="Sampling training graphs"):
+                # print("sampling training graph ", i)
+                seed = ROOT_SEED+1000*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                if i <=2:
-                    print("sampled zeros ", sample_zeros[:10])
-                    print("sampled ones ", sample_ones[:10])
-                k=2
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
+                # if i <=2:
+                #     print("sampled zeros ", sample_zeros[:10])
+                #     print("sampled ones ", sample_ones[:10])
+                k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
@@ -701,28 +777,28 @@ class Dataset:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
                                 sample_zeros.append(nb.item())
                             if nb.item() in one_labeled and nb.item() not in sample_ones:
-                                sample_ones.append(nb.item())  
+                                sample_ones.append(nb.item())
 
-                if i <= 2:
-                    print("after expand sampled zeros ", sample_zeros[:10], len(sample_zeros))
-                    print("after expand sampled ones ", sample_ones[:10], len(sample_ones))
+                # if i <= 2:
+                #     print("after expand sampled zeros ", sample_zeros[:10], len(sample_zeros))
+                #     print("after expand sampled ones ", sample_ones[:10], len(sample_ones))
                 selected_node_ids = sample_zeros + sample_ones
                 selected_node_ids = torch.tensor(selected_node_ids).long()
                 self.training_graph_nodes.append(selected_node_ids)
                 sampled_graph = dgl.node_subgraph(self.original_graph, selected_node_ids, store_ids=True)
-                if i <=2 :
-                    print("few nodes from sampled graph: ", sampled_graph.ndata[dgl.NID][:10])
+                # if i <=2 :
+                #     print("few nodes from sampled graph: ", sampled_graph.ndata[dgl.NID][:10])
                 self.training_graph_sampled.append(sampled_graph)
                 self.training_graph_edges.append(sampled_graph.edata[dgl.EID])
 
             print("traing graph sampled num: ", len(self.training_graph_sampled))
 
-            for i in range(50):
-                seed = ROOT_SEED+50*i
+            for i in tqdm(range(500), desc="Sampling validation graphs"):
+                seed = ROOT_SEED+500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                k=2
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
+                k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
@@ -733,7 +809,7 @@ class Dataset:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
                                 sample_zeros.append(nb.item())
                             if nb.item() in one_labeled and nb.item() not in sample_ones:
-                                sample_ones.append(nb.item())  
+                                sample_ones.append(nb.item())
                 selected_node_ids = sample_zeros + sample_ones
                 selected_node_ids = torch.tensor(selected_node_ids).long()
                 self.validation_graph_nodes.append(selected_node_ids)
@@ -743,12 +819,12 @@ class Dataset:
 
             print("validation graph sampled num: ", len(self.validation_graph_sampled))
 
-            for i in range(50):
-                seed = ROOT_SEED+50*i
+            for i in tqdm(range(500), desc="Sampling testing graphs"):
+                seed = ROOT_SEED+500*i
                 set_seed(seed)
-                sample_zeros = random.sample(zero_labeled, min(10, len(zero_labeled)))
-                sample_ones  = random.sample(one_labeled, min(10, len(one_labeled)))
-                k=2
+                sample_zeros = random.sample(zero_labeled, min(50, len(zero_labeled)))
+                sample_ones  = random.sample(one_labeled, min(50, len(one_labeled)))
+                k=1
                 for _ in range(k):
                     one_labeled_nodes = torch.tensor(sample_ones).long()
                     for n in one_labeled_nodes:
@@ -759,7 +835,7 @@ class Dataset:
                             if nb.item() in zero_labeled and nb.item() not in sample_zeros:
                                 sample_zeros.append(nb.item())
                             if nb.item() in one_labeled and nb.item() not in sample_ones:
-                                sample_ones.append(nb.item())  
+                                sample_ones.append(nb.item())
                 selected_node_ids = sample_zeros + sample_ones
                 selected_node_ids = torch.tensor(selected_node_ids).long()
                 self.testing_graph_nodes.append(selected_node_ids)
@@ -768,7 +844,7 @@ class Dataset:
                 self.testing_graph_edges.append(sampled_graph.edata[dgl.EID])
 
             print("testing graph sampled num: ", len(self.testing_graph_sampled))
-       
+
         self.prepare_dataset_done = True
         print("### util: dataset prepared.")
 
@@ -795,6 +871,7 @@ def get_args():
     parser.add_argument('--cross_modes', type=str, default="ng2ng")
     parser.add_argument('--sp_type', type=str, default='star+union', help="neighbor sampling strategy")
     parser.add_argument('--force_remake_sp',  action="store_true", help="force remaking neighbor sampling matrix")
+    parser.add_argument('--num_workers', type=int, default=0, help="parallel workers for SP matrix generation (0=auto)")
     # pretrain model parameters
     parser.add_argument("--load_model", type=str, default="")
     parser.add_argument("--save_model", action="store_true")
@@ -820,6 +897,9 @@ def get_args():
     parser.add_argument("--replace_ratio", type=float, default=0, help="Replace ratio for GraphMAE")
     
     parser.add_argument("--dropout", type=float, default=0, help="Dropout rate for node in training")
+    parser.add_argument("--n_heads", type=int, default=4, help="Number of attention heads")
+    parser.add_argument("--n_layers_attention", type=int, default=2, help="Number of transformer layers")
+    parser.add_argument("--ff_dim_transformer", type=int, default=32, help="Feedforward dimension in transformer")
     
     
     args = parser.parse_args()

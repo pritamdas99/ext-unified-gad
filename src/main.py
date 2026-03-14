@@ -16,8 +16,12 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     dataset_name = dataset.name.replace('/', '.')
     print('Dataset: {}, Cross_mode: {}, Hop: {}, Kernels: {}, Model: {}'.format(dataset_name, cross_mode, hop, kernels, full_model_name))
     dataset.prepare_dataset()
-    dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True)
-    train_dataloader, val_dataloader, test_dataloader =  dataset.get_graph_and_sp_dataloaders()
+    dataset.make_sp_matrix_graph_list(args.khop, args.sp_type, load_kg=True, num_workers=args.num_workers)
+    if not hasattr(dataset, '_dataloaders_cached'):
+        train_dataloader, val_dataloader, test_dataloader = dataset.get_graph_and_sp_dataloaders()
+        dataset._dataloaders_cached = (train_dataloader, val_dataloader, test_dataloader)
+    else:
+        train_dataloader, val_dataloader, test_dataloader = dataset._dataloaders_cached
 
     e2e_model = UnifyMLPDetector(dataset.total_nodes, dataset, (train_dataloader, val_dataloader, test_dataloader), cross_mode=cross_mode, args=args)
     ST = time.time()
@@ -25,7 +29,7 @@ def work(dataset: Dataset, dataset_name, cross_mode, kernels, args):
     score_test = e2e_model.train()
 
     ED = time.time()
-    time_cost += ED - ST
+    time_cost = ED - ST
     
     
     model_result = {'dataset name': dataset_name,
@@ -68,14 +72,20 @@ def main():
         raise NotImplementedError
     
     # evaluate all parameters
+    results = pandas.DataFrame()  # Initialize results DataFrame
     for dataset_name in dataset_names:
         # parse dataset
         # dataset_name = DATASETS[dataset_id]
         print('190:================> Evaluating dataset: ', dataset_name)
 
         ### settings
-        # load dataset 
-        if dataset_name == 'uni-tsocial' \
+        # load dataset
+        if dataset_name in CSV_DATASETS:
+            csv_path = CSV_DATASETS[dataset_name]
+            g = load_csv_to_dgl(csv_path, dataset_type=dataset_name, feature_dim=16)
+            dataset = Dataset(dataset_name, prefix='../datasets/csv/',
+                              sp_type=sp_type, labels_have='ne', prebuilt_graph=g)
+        elif dataset_name == 'uni-tsocial' \
             or dataset_name == 'mnist/dgl/mnist0' \
             or dataset_name == 'mnist/dgl/mnist1' \
             or dataset_name == 'mutag/dgl/mutag0' \
@@ -99,12 +109,12 @@ def main():
 
         for cross_mode in cross_modes:
             model_result = work(dataset, dataset_name, cross_mode, args.kernels, args)
-            results = pandas.concat([results, model_result])
+            results = pandas.concat([results, pandas.DataFrame([model_result])], ignore_index=True)
 
             # save result for each dataset-model-pair
-            full_model_name = args.kernel + '-transformer'
-            save_file_name = f"{args.tag}.{args.act_ft}.dataset_{dataset_name}.hop_{args.khop}.sp_type_{sp_type}.lr_ft_{args.lr_ft}.epochft_{args.epoch_ft}.wd_{args.l2}.crossmode_{cross_mode}.mlplayers_{args.stitch_mlp_layers}_{args.final_mlp_layers}.lossweights_{str(args.node_loss_weight)+'-'+str(args.edge_loss_weight)+'-'+str(args.graph_loss_weight)}"
-            save_results(results, save_file_name)
+            # full_model_name = args.kernel + '-transformer'
+            # save_file_name = f"{args.tag}.{args.act_ft}.dataset_{dataset_name}.hop_{args.khop}.sp_type_{sp_type}.lr_ft_{args.lr_ft}.epochft_{args.epoch_ft}.wd_{args.l2}.crossmode_{cross_mode}.mlplayers_{args.stitch_mlp_layers}_{args.final_mlp_layers}.lossweights_{str(args.node_loss_weight)+'-'+str(args.edge_loss_weight)+'-'+str(args.graph_loss_weight)}"
+            # save_results(results, save_file_name)
             print(results)
 
 if __name__ == "__main__":

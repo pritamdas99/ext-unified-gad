@@ -20,9 +20,9 @@ def get_best_f1(labels, probs):
     return best_f1, best_thre
 
 LABEL_DICT_KEYS = {
-    'n':"node_labels",
-    'e':'edge_labels',
-    'g':'graph_labels',
+    'n':"node_label",
+    'e':'edge_label',
+    'g':'graph_label',
 }
 
 class UnifyMLPDetector(object):
@@ -40,8 +40,8 @@ class UnifyMLPDetector(object):
 
         self.model = UNIMLP_E2E(
             total_nodes,
-            in_feats=args.in_dim,
-            embed_dims=args.hidden_dim,
+            in_feats=dataset.in_dim,
+            embed_dims=args.hid_dim,
             stitch_mlp_layers=args.stitch_mlp_layers,
             final_mlp_layers=args.final_mlp_layers,
             dropout_rate=args.dropout,
@@ -151,6 +151,9 @@ class UnifyMLPDetector(object):
                 labels = labels.cpu().numpy()
             if torch.is_tensor(probs):
                 probs = probs.cpu().numpy()
+            # guard against NaN in probs from unstable training
+            if np.isnan(probs).any():
+                probs = np.nan_to_num(probs, nan=0.0)
             score['MacroF1'] = get_best_f1(labels, probs)[0]
             score['AUROC'] = roc_auc_score(labels, probs)
             score['AUPRC'] = average_precision_score(labels, probs)
@@ -178,6 +181,7 @@ class UnifyMLPDetector(object):
     def train(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr_ft, weight_decay=self.args.l2_ft)
         for epoch in tqdm( range(self.args.epoch_ft) ):
+            print(f"{epoch} running")
             loss_items_total_train = {k:0 for k in self.output_route }
             total_loss_graph = 0
             total_loss_node = 0
@@ -196,7 +200,7 @@ class UnifyMLPDetector(object):
 
                 self.model.train()
                 logits_dict= self.model(batched_graph, batched_khop_graph)
-                loss, loss_items = self.get_loss(logits_dict, labels_dict=batched_labels_dict)
+                loss, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
 
                 loss = torch.stack(loss).mean() # average the loss of different tasks
                 result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
@@ -206,7 +210,8 @@ class UnifyMLPDetector(object):
                     loss_items_total_train[k] += result[k]
                 optimizer.zero_grad()
                 loss.backward()
-                # pcgrad_fn(self.model, losses=loss, optimizer=optimizer)
+                # clip gradients to prevent explosion from Pareto-weighted updates
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
                 optimizer.step()
                 # scheduler.step()
@@ -248,7 +253,7 @@ class UnifyMLPDetector(object):
                     self.model.eval()
                     with torch.no_grad():
                         logits_dict = self.model(batched_graph, batched_khop_graph)
-                        _, loss_items = self.get_loss(logits_dict, labels_dict=batched_labels_dict)
+                        _, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
                         result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
                         for k in loss_items_total_val:
                             loss_items_total_val[k] += result[k] # notice next block
@@ -291,8 +296,8 @@ class UnifyMLPDetector(object):
                     torch.cuda.empty_cache()
                     self.best_score = score_overall_val
                     self.patience_knt = 0
-                    labels_dict_val_mul = []
-                    probs_dict_val_mul = []
+                    labels_dict_test_mul = []
+                    probs_dict_test_mul = []
                     loss_items_total_test = {k:0 for k in self.output_route }
                     # eval loop
                     for batched_data in self.test_dataloader:
@@ -313,7 +318,7 @@ class UnifyMLPDetector(object):
                         # get test result
                         with torch.no_grad():
                             logits_dict = self.model(batched_graph, batched_khop_graph)
-                            _, loss_items = self.get_loss(logits_dict, labels_dict=batched_labels_dict)
+                            _, loss_items = self.get_loss(logits_dict, labels=batched_labels_dict)
                             result = {k: sum(d[k] for d in loss_items) / len(loss_items) for k in loss_items[0]}
                             for k in loss_items_total_test:
                                 loss_items_total_test[k] += result[k]

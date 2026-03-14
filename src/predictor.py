@@ -93,7 +93,7 @@ class UNIMLP_E2E(nn.Module):
         self.total_nodes = total_nodes
 
         self.model = GCNTemporalFusion(in_dim=in_feats, hid_dim=embed_dims, out_dim=embed_dims, n_layers_gcn=2, activation=activation, norm='batch',
-                 n_heads=n_heads, n_layers_attention=n_layers_attention, ff_dim=ff_dim, dropout=dropout_rate)
+                 n_heads=n_heads, n_layers_attention=n_layers_attention, ff_dim=ff_dim, dropout=dropout_rate)  # out_dim=embed_dims so output matches downstream Linear(embed_dims, embed_dims)
 
         ######## network structure start
         scaling_cross = 1.0

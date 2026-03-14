@@ -13,6 +13,7 @@ class GCNTemporalFusion(nn.Module):
                  n_heads=4, n_layers_attention=2, ff_dim=256, dropout=0.1):
         super().__init__()
         self.in_dim = in_dim
+        self.out_dim = out_dim  # was in_dim — must match GCN/Transformer output dim
         self.gcn = GCN(in_dim, hid_dim, out_dim, n_layers_gcn,
                        dropout, activation=activation, residual=True, norm=norm)
         self.temporal = Transformer(d_model=out_dim, n_heads=n_heads,
@@ -28,21 +29,36 @@ class GCNTemporalFusion(nn.Module):
         H_nodes = []      # node embeddings per timestamp
         pooled_nodes = [] # pooled embeddings for transformer
 
-        mask_t = torch.ones(len(graph_seq), total_nodes)
-        for t, g in enumerate(graph_seq):
-            h_t = self.gcn(g)  
-            h_t = SubgraphPooling(h_t, mrq_graph[t])          
-            padded_ht = torch.zeros(total_nodes, self.in_dim)
-            padded_ht[g.ndata[dgl.NID]] = h_t
-            H_nodes.append(h_t)
-            pooled_nodes.append(padded_ht) 
-            mask_t[t, g.ndata[dgl.NID]] = 0  
-       
+        device = graph_seq[0].device
 
+        # collect all node IDs that appear in any graph
+        all_present_nids = set()
+        for g in graph_seq:
+            all_present_nids.update(g.ndata[dgl.NID].cpu().tolist())
+        present_nids = sorted(all_present_nids)
+        # mapping: original node ID -> compact index
+        nid_to_compact = {nid: idx for idx, nid in enumerate(present_nids)}
+        compact_size = len(present_nids)
+
+        mask_t = torch.ones(len(graph_seq), compact_size, device=device)
+
+        for t, g in enumerate(graph_seq):
+            h_t = self.gcn(g, g.ndata['feature'])
+            h_t = SubgraphPooling(h_t, mrq_graph[t])
+            padded_ht = torch.zeros(compact_size, self.out_dim, device=device)
+            compact_ids = [nid_to_compact[nid] for nid in g.ndata[dgl.NID].cpu().tolist()]
+            compact_ids_t = torch.tensor(compact_ids, device=device)
+            padded_ht[compact_ids_t] = h_t
+            H_nodes.append(h_t)
+            pooled_nodes.append(padded_ht)
+            mask_t[t, compact_ids_t] = 0
 
         pooled_nodes = torch.stack(pooled_nodes)
+        C = self.temporal(pooled_nodes, mask_t)
 
-        C = self.temporal(pooled_nodes, src_key_padding_mask=mask_t)
-
-        h_sub_t = [C[t][g.ndata[dgl.NID]] for t, g in enumerate(graph_seq)] 
-        return h_sub_t  
+        h_sub_t = []
+        for t, g in enumerate(graph_seq):
+            compact_ids = [nid_to_compact[nid] for nid in g.ndata[dgl.NID].cpu().tolist()]
+            compact_ids_t = torch.tensor(compact_ids, device=device)
+            h_sub_t.append(C[t][compact_ids_t])
+        return h_sub_t
