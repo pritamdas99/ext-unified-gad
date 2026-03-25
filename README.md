@@ -150,16 +150,7 @@ datasets/
 └── csv/              # CSV edge-list datasets (bitcoin-otc, bitcoin-alpha)
 ```
 
-## Citation
 
-```bibtex
-@inproceedings{das2025udygad,
-  title     = {U-DyGAD: Unified Dynamic Graph Anomaly Detection via Spatio-Temporal Representation Learning},
-  author    = {Das, Pritam and Rashad, Fahim Sadik},
-  year      = {2025},
-  institution = {Bangladesh University of Engineering and Technology}
-}
-```
 
 ## References
 
