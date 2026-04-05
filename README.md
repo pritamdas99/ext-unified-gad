@@ -1,5 +1,7 @@
 # U-DyGAD: Unified Dynamic Graph Anomaly Detection
 
+****Ex_UniGAD_.ipynb given which is runnable in colab or kaggle
+
 A unified spatio-temporal framework for simultaneous **node-level** and **edge-level** anomaly detection in dynamic graphs. U-DyGAD combines GCN-based spatial encoding with transformer-based temporal encoding, applies MRQSampling for anomaly-aware subgraph extraction, and uses GraphStitch for cross-level information transfer.
 
 **Paper:** *U-DyGAD: Unified Dynamic Graph Anomaly Detection via Spatio-Temporal Representation Learning*
